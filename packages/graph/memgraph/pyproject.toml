@@ -1,0 +1,31 @@
+[project]
+name = "cognee-community-graph-adapter-memgraph"
+version = "0.1.0"
+description = "Memgraph graph database adapter for cognee"
+authors = [
+    {name = "Cognee Team", email = "hello@cognee.ai"},
+]
+dependencies = [
+    "cognee",
+    "neo4j",
+]
+readme = "README.md"
+requires-python = ">= 3.9"
+
+[project.urls]
+Homepage = "https://github.com/topoteretes/cognee"
+Repository = "https://github.com/topoteretes/cognee-community"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "B", "UP", "C4", "PGH", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"] 
