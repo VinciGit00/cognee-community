@@ -1,23 +1,23 @@
-name: test | opensearch
- 
+name: Test OpenSearch Community Adapter
+
 on:
   workflow_dispatch:
   push:
-    branches:
-      - feature/opensearch-as-vectorstore 
+    branches: [ main, dev ]
+    paths:
+      - 'packages/vector/opensearch/**'
   pull_request:
-    types: [labeled, synchronize]
+    branches: [ main, dev ]
+    paths:
+      - 'packages/vector/opensearch/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
- 
-env:
-  RUNTIME__LOG_LEVEL: ERROR
 
 jobs:
-  run_opensearch_integration_test:
-    name: test
+  test-opensearch:
+    name: "OpenSearch Community Adapter Test"
     runs-on: ubuntu-22.04
     services:
       opensearch-node1:
@@ -31,31 +31,17 @@ jobs:
           - 9200:9200
           - 9600:9600
 
-    defaults:
-      run:
-        shell: bash
-  
     steps:
       - name: Check out
-        uses: actions/checkout@master
-  
-      - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
         with:
           python-version: '3.11.x'
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.4.1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
+          package-path: packages/vector/opensearch
   
-      - name: Install dependencies
-        run: poetry install --no-interaction
-        working-directory: ./packages/vector/opensearch
-  
-      - name: Run OpenSearch tests
+      - name: Run OpenSearch Tests
         env:
           ENV: 'dev'
           LLM_MODEL: ${{ secrets.LLM_MODEL }}

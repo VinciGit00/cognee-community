@@ -1,0 +1,82 @@
+name: Community Test Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      databases:
+        description: 'Which databases to test (comma-separated or "all")'
+        required: false
+        default: 'all'
+        type: string
+      python-version:
+        description: 'Python version to use'
+        required: false
+        default: '3.11.x'
+        type: string
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-vector-databases:
+    name: Test Vector Databases
+    uses: ./.github/workflows/vector_db_community_tests.yml
+    with:
+      databases: ${{ inputs.databases || 'all' }}
+      python-version: ${{ inputs.python-version || '3.11.x' }}
+    secrets:
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+      EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+      EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+      EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+      EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+      QDRANT_API_URL: ${{ secrets.QDRANT_API_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      WEAVIATE_API_URL: ${{ secrets.WEAVIATE_API_URL }}
+      WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+
+  test-graph-databases:
+    name: Test Graph Databases
+    uses: ./.github/workflows/graph_db_community_tests.yml
+    with:
+      databases: ${{ inputs.databases || 'all' }}
+      python-version: ${{ inputs.python-version || '3.11.x' }}
+    secrets:
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+      EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+      EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+      EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+      EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-22.04
+    needs: [test-vector-databases, test-graph-databases]
+    if: always()
+    steps:
+      - name: Test Results Summary
+        run: |
+          echo "## Community Database Tests Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Vector Databases | ${{ needs.test-vector-databases.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Graph Databases | ${{ needs.test-graph-databases.result }} |" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.test-vector-databases.result }}" == "success" && "${{ needs.test-graph-databases.result }}" == "success" ]]; then
+            echo "✅ All community database tests passed!"
+            exit 0
+          else
+            echo "❌ Some community database tests failed!"
+            exit 1
+          fi 

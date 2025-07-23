@@ -1,0 +1,67 @@
+name: Test Milvus Community Adapter
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'packages/vector/milvus/**'
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'packages/vector/milvus/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-milvus:
+    name: "Milvus Community Adapter Test"
+    runs-on: ubuntu-22.04
+    services:
+      milvus:
+        image: milvusdb/milvus:v2.4.15
+        ports:
+          - "19530:19530"
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: '3.11.x'
+          package-path: packages/vector/milvus
+
+      - name: Wait for Milvus
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:19530/health 2>/dev/null; then
+              echo "Milvus is ready"
+              break
+            fi
+            echo "Waiting for Milvus..."
+            sleep 5
+          done
+
+      - name: Run Milvus Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'milvus'
+          VECTOR_DB_URL: 'http://localhost:19530'
+        working-directory: ./packages/vector/milvus
+        run: |
+          if [ -f "examples/milvus_example.py" ]; then
+            poetry run python examples/milvus_example.py
+          else
+            poetry run python example.py
+          fi 

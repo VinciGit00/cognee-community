@@ -1,0 +1,64 @@
+name: Test Memgraph Community Adapter
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'packages/graph/memgraph/**'
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'packages/graph/memgraph/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-memgraph:
+    name: "Memgraph Community Adapter Test"
+    runs-on: ubuntu-22.04
+    services:
+      memgraph:
+        image: memgraph/memgraph:2.20.1
+        ports:
+          - 7687:7687
+        env:
+          MEMGRAPH: "--log-level=TRACE --also-log-to-stderr"
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: '3.11.x'
+          package-path: packages/graph/memgraph
+
+      - name: Wait for Memgraph
+        run: |
+          for i in {1..30}; do
+            if nc -z localhost 7687; then
+              echo "Memgraph is ready"
+              break
+            fi
+            echo "Waiting for Memgraph..."
+            sleep 2
+          done
+
+      - name: Run Memgraph Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          GRAPH_DATABASE_PROVIDER: 'memgraph'
+          GRAPH_DB_URL: 'bolt://localhost:7687'
+        working-directory: ./packages/graph/memgraph
+        run: poetry run python example.py 

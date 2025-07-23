@@ -1,0 +1,39 @@
+name: community-setup
+description: "Sets up Python, installs Poetry, and installs dependencies for Cognee Community packages."
+
+inputs:
+  python-version:
+    description: "Which Python version to use"
+    required: false
+    default: "3.11.x"
+  package-path:
+    description: "Path to the package directory (e.g., packages/vector/qdrant)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Poetry
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install poetry
+
+    - name: Install package dependencies
+      shell: bash
+      run: |
+        cd ${{ inputs.package-path }}
+        poetry install --no-interaction
+      working-directory: ./
+
+    - name: Verify installation
+      shell: bash
+      run: |
+        cd ${{ inputs.package-path }}
+        poetry run python -c "import cognee; print('Cognee imported successfully')"
+      working-directory: ./ 

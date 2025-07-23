@@ -1,0 +1,283 @@
+name: Community Vector DB Tests
+
+on:
+  workflow_call:
+    inputs:
+      databases:
+        required: false
+        type: string
+        default: "all"
+        description: "Which vector databases to test (comma-separated list or 'all')"
+      python-version:
+        required: false
+        type: string
+        default: "3.11.x"
+    secrets:
+      LLM_MODEL:
+        required: true
+      LLM_ENDPOINT:
+        required: true
+      LLM_API_KEY:
+        required: true
+      LLM_API_VERSION:
+        required: true
+      EMBEDDING_MODEL:
+        required: true
+      EMBEDDING_ENDPOINT:
+        required: true
+      EMBEDDING_API_KEY:
+        required: true
+      EMBEDDING_API_VERSION:
+        required: true
+      QDRANT_API_URL:
+        required: false
+      QDRANT_API_KEY:
+        required: false
+      WEAVIATE_API_URL:
+        required: false
+      WEAVIATE_API_KEY:
+        required: false
+
+jobs:
+  test-qdrant:
+    name: "Qdrant Community Adapter Test"
+    runs-on: ubuntu-22.04
+    if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'qdrant') }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: ${{ inputs.python-version }}
+          package-path: packages/vector/qdrant
+
+      - name: Run Qdrant Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'qdrant'
+          VECTOR_DB_URL: ${{ secrets.QDRANT_API_URL }}
+          VECTOR_DB_KEY: ${{ secrets.QDRANT_API_KEY }}
+        working-directory: ./packages/vector/qdrant
+        run: poetry run python example.py
+
+  test-weaviate:
+    name: "Weaviate Community Adapter Test"
+    runs-on: ubuntu-22.04
+    if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'weaviate') }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: ${{ inputs.python-version }}
+          package-path: packages/vector/weaviate
+
+      - name: Run Weaviate Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'weaviate'
+          VECTOR_DB_URL: ${{ secrets.WEAVIATE_API_URL }}
+          VECTOR_DB_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+        working-directory: ./packages/vector/weaviate
+        run: poetry run python example.py
+
+  test-opensearch:
+    name: "OpenSearch Community Adapter Test"
+    runs-on: ubuntu-22.04
+    if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'opensearch') }}
+    services:
+      opensearch-node1:
+        image: opensearchproject/opensearch:2.17.1
+        env:
+          discovery.type: single-node
+          bootstrap.memory_lock: true
+          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+          OPENSEARCH_INITIAL_ADMIN_PASSWORD: "oPens777@seArchopensearch"
+        ports:
+          - 9200:9200
+          - 9600:9600
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: ${{ inputs.python-version }}
+          package-path: packages/vector/opensearch
+
+      - name: Run OpenSearch Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'opensearch'
+          VECTOR_DB_URL: 'https://localhost:9200'
+          VECTOR_DB_KEY: 'eyJ1c2VybmFtZSI6ICJhZG1pbiIsICJwYXNzd29yZCI6ICJvUGVuczc3N0BzZUFyY2hvcGVuc2VhcmNoIiwgInVzZV9zc2wiOiAiRmFsc2UiLCAidmVyaWZ5X2NlcnRzIjogIkZhbHNlIiwgInNzbF9hc3NlcnRfaG9zdG5hbWUiOiAiRmFsc2UiLCAic3NsX3Nob3dfd2FybiI6ICJGYWxzZSIsICJpbmRleF9wcmVmaXgiOiAiYXBwLXByZWZpeC0ifQ=='
+        working-directory: ./packages/vector/opensearch
+        run: |
+          if [ -f "cognee_community_vector_adapter_opensearch/tests/test_opensearch.py" ]; then
+            poetry run python ./cognee_community_vector_adapter_opensearch/tests/test_opensearch.py
+          else
+            poetry run python example.py
+          fi
+
+  test-redis:
+    name: "Redis Community Adapter Test"
+    runs-on: ubuntu-22.04
+    if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'redis') }}
+    services:
+      redis:
+        image: redis/redis-stack-server:7.4.0-v1
+        ports:
+          - 6379:6379
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: ${{ inputs.python-version }}
+          package-path: packages/vector/redis
+
+      - name: Run Redis Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'redis'
+          VECTOR_DB_URL: 'redis://localhost:6379'
+        working-directory: ./packages/vector/redis
+        run: |
+          if [ -f "examples/example.py" ]; then
+            poetry run python examples/example.py
+          else
+            poetry run python example.py
+          fi
+
+  test-milvus:
+    name: "Milvus Community Adapter Test"
+    runs-on: ubuntu-22.04
+    if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'milvus') }}
+    services:
+      etcd:
+        image: quay.io/coreos/etcd:v3.5.5
+        env:
+          ETCD_AUTO_COMPACTION_MODE: revision
+          ETCD_AUTO_COMPACTION_RETENTION: "1000"
+          ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+          ETCD_SNAPSHOT_COUNT: "50000"
+        ports:
+          - "2379:2379"
+          - "2380:2380"
+      milvus:
+        image: milvusdb/milvus:v2.4.15
+        env:
+          ETCD_ENDPOINTS: etcd:2379
+          MINIO_ADDRESS: minio:9000
+        ports:
+          - "19530:19530"
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: ${{ inputs.python-version }}
+          package-path: packages/vector/milvus
+
+      - name: Wait for Milvus
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:19530/health; then
+              echo "Milvus is ready"
+              break
+            fi
+            echo "Waiting for Milvus..."
+            sleep 5
+          done
+
+      - name: Run Milvus Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'milvus'
+          VECTOR_DB_URL: 'http://localhost:19530'
+        working-directory: ./packages/vector/milvus
+        run: |
+          if [ -f "examples/milvus_example.py" ]; then
+            poetry run python examples/milvus_example.py
+          else
+            poetry run python example.py
+          fi
+
+  test-azureaisearch:
+    name: "Azure AI Search Community Adapter Test"
+    runs-on: ubuntu-22.04
+    if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'azureaisearch') }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: ${{ inputs.python-version }}
+          package-path: packages/vector/azureaisearch
+
+      - name: Run Azure AI Search Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'azureaisearch'
+          # Note: Azure AI Search requires actual credentials, this will be a dry run
+        working-directory: ./packages/vector/azureaisearch
+        run: poetry run python example.py 
