@@ -3,7 +3,7 @@ name = "cognee-community-vector-adapter-weaviate"
 version = "1.0.0"
 description = "Weaviate vector database adapter for cognee"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<=3.13"
 dependencies = [
     "weaviate-client>=4.9.6,<5.0.0",
     "cognee>=0.1.41"

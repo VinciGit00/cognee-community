@@ -10,7 +10,7 @@ dependencies = [
     "neo4j",
 ]
 readme = "README.md"
-requires-python = ">= 3.9"
+requires-python = ">=3.10,<=3.13"
 
 [project.urls]
 Homepage = "https://github.com/topoteretes/cognee"
