@@ -4,7 +4,7 @@ import pathlib
 from os import path
 
 # Please provide an OpenAI API Key
-os.environ["LLM_API_KEY"]=""
+os.environ.setdefault("LLM_API_KEY", "your-api-key")
 
 async def main():
     from cognee import config, prune, add, cognify, search, SearchType
@@ -18,8 +18,8 @@ async def main():
     # Please provide your Redis instance url
     config.set_vector_db_config({
         "vector_db_provider": "redis",
-        "vector_db_url": "redis://localhost:6379",
-        "vector_db_key": "",
+        "vector_db_url": os.getenv("VECTOR_DB_URL", "redis://localhost:6379"),
+        "vector_db_key": os.getenv("VECTOR_DB_KEY", "your-api-key"),
     })
 
     await prune.prune_data()
