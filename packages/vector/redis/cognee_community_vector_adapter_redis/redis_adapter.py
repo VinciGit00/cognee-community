@@ -174,65 +174,72 @@ class RedisAdapter(VectorDBInterface):
         """
         try:
             index = self._get_index(collection_name)
-            return await index.exists()
+            result = await index.exists()
+            await index.disconnect()
+            return result
         except Exception:
             return False
-    
+
     async def create_collection(
         self,
         collection_name: str,
         payload_schema: Optional[Any] = None,
     ) -> None:
         """Create a new collection (Redis index) with vector search capabilities.
-        
+
         Args:
             collection_name: Name of the collection to create.
             payload_schema: Schema for payload data (not used).
-            
+
         Raises:
             Exception: If collection creation fails.
         """
         async with self.VECTOR_DB_LOCK:
+            index = self._get_index(collection_name)
+
             try:
                 if await self.has_collection(collection_name):
                     logger.info(f"Collection {collection_name} already exists")
+                    await index.disconnect()
                     return
-                
-                index = self._get_index(collection_name)
+
                 await index.create(overwrite=False)
-                
+
                 logger.info(f"Created collection {collection_name}")
-                
+
             except Exception as e:
                 logger.error(f"Error creating collection {collection_name}: {str(e)}")
                 raise e
-    
+            await index.disconnect()
+
     async def create_data_points(self, collection_name: str, data_points: List[DataPoint]) -> None:
         """Create data points in the collection.
-        
+
         Args:
             collection_name: Name of the target collection.
             data_points: List of DataPoint objects to insert.
-            
+
         Raises:
             CollectionNotFoundError: If the collection doesn't exist.
             Exception: If data point creation fails.
         """
+        index = self._get_index(collection_name)
+
         try:
             if not await self.has_collection(collection_name):
                 raise CollectionNotFoundError(f"Collection {collection_name} not found!")
-            
+
             # Embed the data points
             data_vectors = await self.embed_data(
                 [DataPoint.get_embeddable_data(data_point) for data_point in data_points]
             )
-            
+
             # Prepare documents for RedisVL
             documents = []
             for data_point, embedding in zip(data_points, data_vectors):
                 # Serialize the payload to handle UUIDs and other non-JSON types
                 payload = serialize_for_json(data_point.model_dump())
-                
+
                 doc_data = {
                     "id": str(data_point.id),
                     "text": getattr(data_point, data_point.metadata.get("index_fields", ["text"])[0], ""),
@@ -240,31 +247,32 @@ class RedisAdapter(VectorDBInterface):
                     "payload": json.dumps(payload)  # Store as JSON string
                 }
                 documents.append(doc_data)
-            
+
             # Load using RedisVL
-            index = self._get_index(collection_name)
             await index.load(documents, id_field="id")
-            
+
             logger.info(f"Created {len(data_points)} data points in collection {collection_name}")
-            
+
         except Exception as e:
             logger.error(f"Error creating data points: {str(e)}")
             raise e
-    
+        finally:
+            await index.disconnect()
+
     async def create_vector_index(self, index_name: str, index_property_name: str) -> None:
         """Create a vector index for a specific property.
-        
+
         Args:
             index_name: Base name for the index.
             index_property_name: Property name to index.
         """
         await self.create_collection(f"{index_name}_{index_property_name}")
-    
+
     async def index_data_points(
         self, index_name: str, index_property_name: str, data_points: list[DataPoint]
     ) -> None:
         """Index data points for a specific property.
-        
+
         Args:
             index_name: Base name for the index.
             index_property_name: Property name to index.
@@ -280,21 +288,21 @@ class RedisAdapter(VectorDBInterface):
                 for data_point in data_points
             ],
         )
-    
+
     async def retrieve(self, collection_name: str, data_point_ids: List[str]) -> List[Dict[str, Any]]:
         """Retrieve data points by their IDs.
-        
+
         Args:
             collection_name: Name of the collection to retrieve from.
             data_point_ids: List of data point IDs to retrieve.
-            
+
         Returns:
             List of retrieved data point payloads.
         """
+        index = self._get_index(collection_name)
         try:
-            index = self._get_index(collection_name)
             results = []
-            
+
             for data_id in data_point_ids:
                 doc = await index.fetch(data_id)
                 if doc:
@@ -306,13 +314,15 @@ class RedisAdapter(VectorDBInterface):
                     except json.JSONDecodeError:
                         # Fallback to the document itself if payload parsing fails
                         results.append(doc)
-            
+
+            await index.disconnect()
             return results
-            
+
         except Exception as e:
             logger.error(f"Error retrieving data points: {str(e)}")
+            await index.disconnect()
             return []
-    
+
     async def search(
         self,
         collection_name: str,
@@ -322,36 +332,38 @@ class RedisAdapter(VectorDBInterface):
         with_vector: bool = False,
     ) -> List[ScoredResult]:
         """Search for similar vectors in the collection.
-        
+
         Args:
             collection_name: Name of the collection to search.
             query_text: Text query to search for (will be embedded).
             query_vector: Pre-computed query vector.
             limit: Maximum number of results to return.
             with_vector: Whether to include vectors in results.
-            
+
         Returns:
             List of ScoredResult objects sorted by similarity.
-            
+
         Raises:
             InvalidValueError: If neither query_text nor query_vector is provided.
             Exception: If search execution fails.
         """
         if query_text is None and query_vector is None:
             raise InvalidValueError("One of query_text or query_vector must be provided!")
-        
+
         if limit <= 0:
             return []
-        
+
         if not await self.has_collection(collection_name):
             logger.warning(f"Collection '{collection_name}' not found in RedisAdapter.search; returning [].")
             return []
-        
+
+        index = self._get_index(collection_name)
+
         try:
             # Get the query vector
             if query_vector is None:
                 query_vector = (await self.embed_data([query_text]))[0]
-            
+
             # Create the vector query
             vector_query = VectorQuery(
                 vector=query_vector,
@@ -360,17 +372,16 @@ class RedisAdapter(VectorDBInterface):
                 return_score=True,
                 normalize_vector_distance=True
             )
-            
+
             # Set return fields
             return_fields = ["id", "text", "payload"]
             if with_vector:
                 return_fields.append("vector")
             vector_query = vector_query.return_fields(*return_fields)
-            
+
             # Execute the search
-            index = self._get_index(collection_name)
             results = await index.query(vector_query)
-            
+
             # Convert results to ScoredResult objects
             scored_results = []
             for doc in results:
@@ -380,7 +391,7 @@ class RedisAdapter(VectorDBInterface):
                     payload = json.loads(payload_str)
                 except json.JSONDecodeError:
                     payload = doc
-                
+
                 scored_results.append(
                     ScoredResult(
                         id=parse_id(doc["id"]),
@@ -388,12 +399,15 @@ class RedisAdapter(VectorDBInterface):
                         score=float(doc.get("vector_distance", 0.0))  # RedisVL returns distance
                     )
                 )
+
+            await index.disconnect()
             return scored_results
-            
+
         except Exception as e:
             logger.error(f"Error during search: {str(e)}")
+            await index.disconnect()
             raise e
-    
+
     async def batch_search(
         self,
         collection_name: str,
@@ -402,19 +416,19 @@ class RedisAdapter(VectorDBInterface):
         with_vectors: bool = False,
     ) -> List[List[ScoredResult]]:
         """Perform batch search for multiple queries.
-        
+
         Args:
             collection_name: Name of the collection to search.
             query_texts: List of text queries to search for.
             limit: Maximum number of results per query.
             with_vectors: Whether to include vectors in results.
-            
+
         Returns:
             List of search results for each query, filtered by score threshold.
         """
         # Embed all queries at once
         vectors = await self.embed_data(query_texts)
-        
+
         # Execute searches in parallel
         # TODO: replace with index.batch_query() in the future
         search_tasks = [
@@ -426,42 +440,45 @@ class RedisAdapter(VectorDBInterface):
             )
             for vector in vectors
         ]
-        
+
         results = await asyncio.gather(*search_tasks)
-        
+
         # Filter results by score threshold (Redis uses distance, so lower is better)
         return [
             [result for result in result_group if result.score < 0.1]
             for result_group in results
         ]
-    
+
     async def delete_data_points(self, collection_name: str, data_point_ids: List[str]) -> Dict[str, int]:
         """Delete data points by their IDs.
-        
+
         Args:
             collection_name: Name of the collection to delete from.
             data_point_ids: List of data point IDs to delete.
-            
+
         Returns:
             Dictionary containing the number of deleted documents.
-            
+
         Raises:
             Exception: If deletion fails.
         """
+        index = self._get_index(collection_name)
+
         try:
-            index = self._get_index(collection_name)
             deleted_count = await index.drop_documents(data_point_ids)
             logger.info(f"Deleted {deleted_count} data points from collection {collection_name}")
+            await index.disconnect()
             return {"deleted": deleted_count}
         except Exception as e:
             logger.error(f"Error deleting data points: {str(e)}")
+            await index.disconnect()
             raise e
-    
+
     async def prune(self) -> None:
         """Remove all collections and data from Redis.
-        
+
         This method drops all existing indices and clears the internal cache.
-        
+
         Raises:
             Exception: If pruning fails.
         """
@@ -475,6 +492,7 @@ class RedisAdapter(VectorDBInterface):
                         await index.disconnect()
                 except Exception as e:
                     logger.warning(f"Failed to drop index {collection_name}: {str(e)}")
+                    await index.disconnect()
             
             # Clear the indices cache
             self._indices.clear()

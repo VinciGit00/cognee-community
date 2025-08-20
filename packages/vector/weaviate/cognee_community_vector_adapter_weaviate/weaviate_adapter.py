@@ -137,8 +137,10 @@ class WeaviateAdapter(VectorDBInterface):
 
             - bool: True if the collection exists, otherwise False.
         """
-        client = await self.get_client()
-        return await client.collections.exists(collection_name)
+        async with await self.get_client() as client:
+            result = await client.collections.exists(collection_name)
+        # await client.close()
+        return result
 
     @retry(
         retry=retry_if_exception(is_retryable_request),
@@ -173,7 +175,7 @@ class WeaviateAdapter(VectorDBInterface):
         async with self.VECTOR_DB_LOCK:
             if not await self.has_collection(collection_name):
                 client = await self.get_client()
-                return await client.collections.create(
+                result = await client.collections.create(
                     name=collection_name,
                     properties=[
                         wvcc.Property(
@@ -181,6 +183,8 @@ class WeaviateAdapter(VectorDBInterface):
                         )
                     ],
                 )
+                await client.close()
+                return result
             else:
                 return await self.get_collection(collection_name)
 
@@ -203,8 +207,10 @@ class WeaviateAdapter(VectorDBInterface):
         if not await self.has_collection(collection_name):
             raise CollectionNotFoundError(f"Collection '{collection_name}' not found.")
 
-        client = await self.get_client()
-        return client.collections.get(collection_name)
+        async with await self.get_client() as client:
+            result = client.collections.get(collection_name)
+        # await client.close()
+        return result
 
     @retry(
         retry=retry_if_exception(is_retryable_request),
@@ -515,4 +521,5 @@ class WeaviateAdapter(VectorDBInterface):
         This operation will remove all data and cannot be undone.
         """
         client = await self.get_client()
-        await client.collections.delete_all() 
+        await client.collections.delete_all()
+        await client.close()
