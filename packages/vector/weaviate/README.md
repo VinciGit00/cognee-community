@@ -4,9 +4,50 @@ This is a community-maintained adapter that enables Cognee to work with Weaviate
 
 ## Installation
 
+Firstly, create a virtual environment (venv) in the `cognee-community` directory with your desired python version 
+(>=3.11, <= 3.13, as stated below in the readme). Then activate the venv, install `poetry`, and use it to install
+all the necessary dependencies. `poetry install` should be executed in the `.../packages/vector/weaviate` directory.
+The commands are listed below.
+
+Side note: if there is an issue after installing poetry, run the `deactivate` command, and then reactivate the venv.
+
+```bash
+python3.11 -m venv .venv # create virtual environment
+source .venv/bin/activate # activate venv
+pip install poetry # install poetry
+poetry install # install dependencies
+``` 
+After this, run the following install command and you should have everything you need:
 ```bash
 pip install cognee-community-vector-adapter-weaviate
 ```
+
+## Connection Setup
+The provided code creates an async client connected to a remote instance of Weaviate. If you want to connect to a local 
+instance, like running a docker container locally and connecting to it, you need to change a few lines of code. 
+In the `weaviate_adapter.py` file inside the `.../weaviate/cognee_community_vector_adapter_weaviate` directory, replace 
+the following lines in the constructor: 
+
+```
+self.client = weaviate.use_async_with_weaviate_cloud(
+    cluster_url=url,
+    auth_credentials=weaviate.auth.AuthApiKey(api_key),
+    additional_config=wvc.init.AdditionalConfig(timeout=wvc.init.Timeout(init=30)),
+)
+```
+with the following:
+
+```
+self.client = weaviate.use_async_with_local(
+    host="localhost",
+    port=8080,
+    grpc_port=50051
+)
+```
+
+You can use the docker command provided by Weaviate (https://docs.weaviate.io/deploy/installation-guides/docker-installation)
+to run Weaviate with default settings. The command looks something like this, specifying the ports for connection:
+`docker run -p 8080:8080 -p 50051:50051 cr.weaviate.io/semitechnologies/weaviate:1.32.4`
 
 ## Usage
 

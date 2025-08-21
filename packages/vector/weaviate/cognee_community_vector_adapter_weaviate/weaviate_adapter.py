@@ -137,10 +137,7 @@ class WeaviateAdapter(VectorDBInterface):
 
             - bool: True if the collection exists, otherwise False.
         """
-        async with await self.get_client() as client:
-            result = await client.collections.exists(collection_name)
-        # await client.close()
-        return result
+        return await self.client.collections.exists(collection_name)
 
     @retry(
         retry=retry_if_exception(is_retryable_request),
@@ -172,10 +169,10 @@ class WeaviateAdapter(VectorDBInterface):
         """
         import weaviate.classes.config as wvcc
 
+        client = await self.get_client()
         async with self.VECTOR_DB_LOCK:
             if not await self.has_collection(collection_name):
-                client = await self.get_client()
-                result = await client.collections.create(
+                return await client.collections.create(
                     name=collection_name,
                     properties=[
                         wvcc.Property(
@@ -183,10 +180,10 @@ class WeaviateAdapter(VectorDBInterface):
                         )
                     ],
                 )
+            else:
+                result = await self.get_collection(collection_name)
                 await client.close()
                 return result
-            else:
-                return await self.get_collection(collection_name)
 
     async def get_collection(self, collection_name: str):
         """
@@ -207,10 +204,7 @@ class WeaviateAdapter(VectorDBInterface):
         if not await self.has_collection(collection_name):
             raise CollectionNotFoundError(f"Collection '{collection_name}' not found.")
 
-        async with await self.get_client() as client:
-            result = client.collections.get(collection_name)
-        # await client.close()
-        return result
+        return self.client.collections.get(collection_name)
 
     @retry(
         retry=retry_if_exception(is_retryable_request),
@@ -270,6 +264,7 @@ class WeaviateAdapter(VectorDBInterface):
 
         data_points = [convert_to_weaviate_data_points(data_point) for data_point in data_points]
 
+        await self.get_client()
         collection = await self.get_collection(collection_name)
 
         try:
@@ -294,6 +289,8 @@ class WeaviateAdapter(VectorDBInterface):
         except Exception as error:
             logger.error("Error creating data points: %s", str(error))
             raise error
+        finally:
+            await self.client.close()
 
     async def create_vector_index(self, index_name: str, index_property_name: str):
         """
@@ -364,6 +361,7 @@ class WeaviateAdapter(VectorDBInterface):
         """
         from weaviate.classes.query import Filter
 
+        await self.get_client()
         collection = await self.get_collection(collection_name)
         data_points = await collection.query.fetch_objects(
             filters=Filter.by_id().contains_any(data_point_ids)
@@ -374,6 +372,7 @@ class WeaviateAdapter(VectorDBInterface):
             data_point.id = data_point.uuid
             del data_point.properties
 
+        await self.client.close()
         return data_points.objects
 
     async def search(
@@ -415,28 +414,38 @@ class WeaviateAdapter(VectorDBInterface):
         if query_vector is None:
             query_vector = (await self.embed_data([query_text]))[0]
 
-        collection = await self.get_collection(collection_name)
+        async with weaviate.use_async_with_weaviate_cloud(
+            cluster_url=self.url,
+            auth_credentials=weaviate.auth.AuthApiKey(self.api_key),
+            additional_config=wvc.init.AdditionalConfig(timeout=wvc.init.Timeout(init=30)),
+        ) as client:
+            await client.connect()
 
-        try:
-            search_result = await collection.query.hybrid(
-                query=None,
-                vector=query_vector,
-                limit=limit if limit > 0 else None,
-                include_vector=with_vector,
-                return_metadata=wvc.query.MetadataQuery(score=True),
-            )
+            if not await client.collections.exists(collection_name):
+                raise CollectionNotFoundError(f"Collection '{collection_name}' not found.")
 
-            return [
-                ScoredResult(
-                    id=parse_id(str(result.uuid)),
-                    payload=result.properties,
-                    score=1 - float(result.metadata.score),
+            collection = client.collections.get(collection_name)
+
+            try:
+                search_result = await collection.query.hybrid(
+                    query=None,
+                    vector=query_vector,
+                    limit=limit if limit > 0 else None,
+                    include_vector=with_vector,
+                    return_metadata=wvc.query.MetadataQuery(score=True),
                 )
-                for result in search_result.objects
-            ]
-        except weaviate.exceptions.WeaviateInvalidInputError:
-            # Ignore if the collection doesn't exist
-            return []
+
+                return [
+                    ScoredResult(
+                        id=parse_id(str(result.uuid)),
+                        payload=result.properties,
+                        score=1 - float(result.metadata.score),
+                    )
+                    for result in search_result.objects
+                ]
+            except weaviate.exceptions.WeaviateInvalidInputError:
+                # Ignore if the collection doesn't exist
+                return []
 
     async def batch_search(
         self, collection_name: str, query_texts: List[str], limit: int, with_vectors: bool = False
@@ -507,10 +516,12 @@ class WeaviateAdapter(VectorDBInterface):
         """
         from weaviate.classes.query import Filter
 
+        await self.get_client()
         collection = await self.get_collection(collection_name)
         result = await collection.data.delete_many(
             filters=Filter.by_id().contains_any(data_point_ids)
         )
+        await self.client.close()
 
         return result
 
