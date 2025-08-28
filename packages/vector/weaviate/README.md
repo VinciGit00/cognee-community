@@ -4,7 +4,7 @@ This is a community-maintained adapter that enables Cognee to work with Weaviate
 
 ## Installation
 
-Firstly, create a virtual environment (venv) in the `cognee-community` directory with your desired python version 
+In case the package is not published yet, create a virtual environment (venv) in the `cognee-community` directory with your desired python version 
 (>=3.11, <= 3.13, as stated below in the readme). Then activate the venv, install `poetry`, and use it to install
 all the necessary dependencies. `poetry install` should be executed in the `.../packages/vector/weaviate` directory.
 The commands are listed below.
@@ -12,12 +12,14 @@ The commands are listed below.
 Side note: if there is an issue after installing poetry, run the `deactivate` command, and then reactivate the venv.
 
 ```bash
-python3.11 -m venv .venv # create virtual environment
+python3.11 -m venv .venv # create virtual environment like this OR with uv
+uv venv # another way of creating a virtual environment
 source .venv/bin/activate # activate venv
 pip install poetry # install poetry
 poetry install # install dependencies
 ``` 
-After this, run the following install command and you should have everything you need:
+
+When the package is published, you can simply run the following command:
 ```bash
 pip install cognee-community-vector-adapter-weaviate
 ```
