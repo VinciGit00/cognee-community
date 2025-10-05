@@ -45,7 +45,7 @@ async def main():
     
     # Optional: Clean previous data
     await prune.prune_data()
-    await prune.prune_system()
+    await prune.prune_system(metadata=True)
     
     # Add and process your content
     await add("""
