@@ -806,18 +806,19 @@ class FalkorDBAdapter:
             raise CollectionNotFoundError(f"No vector index found for collection {collection_name}")
 
         if limit is None:
-            query = "MATCH (n) RETURN COUNT(n)"
+            query = f"MATCH (n:{label}) RETURN COUNT(n)"
             result = self.query(query)
             limit = result.result_set[0][0]
 
         if limit == 0:
             return []
 
+        # TODO: Figure out why this query returns around half of what the limit is
         query = dedent(f"""
         CALL db.idx.vector.queryNodes(
             '{label}',
             '{attribute_name}_vector',
-            {limit},
+            {limit*5},
             vecf32({query_vector}))
         YIELD node, score
         """).strip()
