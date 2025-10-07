@@ -806,7 +806,7 @@ class FalkorDBAdapter:
             raise CollectionNotFoundError(f"No vector index found for collection {collection_name}")
 
         if limit is None:
-            query = f"MATCH (n) RETURN COUNT(n)"
+            query = "MATCH (n) RETURN COUNT(n)"
             result = self.query(query)
             limit = result.result_set[0][0]
 
