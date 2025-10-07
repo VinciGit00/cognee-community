@@ -286,7 +286,7 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
             )
             return []
 
-        if limit is None or limit == 0:
+        if limit is None:
             search_query = f"""select count(*) from {collection_name}"""
             count = await self._execute_query_one(search_query)
             if count is None:
