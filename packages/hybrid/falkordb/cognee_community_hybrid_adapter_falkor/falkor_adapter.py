@@ -818,7 +818,7 @@ class FalkorDBAdapter:
         CALL db.idx.vector.queryNodes(
             '{label}',
             '{attribute_name}_vector',
-            {limit*5},
+            {limit * 5},
             vecf32({query_vector}))
         YIELD node, score
         """).strip()
