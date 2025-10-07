@@ -83,7 +83,7 @@ async def main():
         {
             "graph_database_url": "localhost",  # FalkorDB URL (using Redis protocol)
             "graph_database_port": 6379,
-            "graph_database_provider": "falkordb",
+            "graph_database_provider": "falkor",
         }
     )
 
@@ -92,7 +92,7 @@ async def main():
         {
             "vector_db_url": "localhost",
             "vector_db_port": 6379,
-            "vector_db_provider": "falkordb",
+            "vector_db_provider": "falkor",
         }
     )
 
@@ -145,7 +145,7 @@ async def main():
     from cognee.infrastructure.databases.vector import get_vector_engine
 
     vector_engine = get_vector_engine()
-    random_node = (await vector_engine.search("entity.name", "AI"))[0]
+    random_node = (await vector_engine.search("Entity_name", "AI"))[0]
     random_node_name = random_node.payload["text"]
 
     search_results = await cognee.search(
@@ -212,7 +212,7 @@ async def main():
     # For FalkorDB, check if the graph database is empty
     from cognee.infrastructure.databases.graph import get_graph_engine
 
-    graph_engine = get_graph_engine()
+    graph_engine = await get_graph_engine()
     graph_data = await graph_engine.get_graph_data()
     nodes, edges = graph_data
     assert len(nodes) == 0 and len(edges) == 0, "FalkorDB graph database is not empty"

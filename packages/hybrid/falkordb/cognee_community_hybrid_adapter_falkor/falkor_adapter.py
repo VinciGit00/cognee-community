@@ -4,6 +4,10 @@ from textwrap import dedent
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from cognee.infrastructure.databases.vector.exceptions import CollectionNotFoundError
+from cognee.infrastructure.databases.vector.models.ScoredResult import ScoredResult
+from cognee.infrastructure.engine.utils import parse_id
+
 if TYPE_CHECKING:
     from cognee.infrastructure.databases.graph.graph_db_interface import (
         GraphDBInterface,
@@ -418,11 +422,12 @@ class FalkorDBAdapter:
         """
         graph = self.driver.select_graph(self.graph_name)
 
-        if not self.has_vector_index(graph, index_name, index_property_name):
+        if not self.has_vector_index(graph, index_name, f"{index_property_name}_vector"):
             graph.create_node_vector_index(
                 index_name,
-                index_property_name,
+                f"{index_property_name}_vector",
                 dim=self.embedding_engine.get_vector_size(),
+                similarity_function="cosine",
             )
 
     def has_vector_index(self, graph: Graph, index_name: str, index_property_name: str) -> bool:
@@ -442,6 +447,9 @@ class FalkorDBAdapter:
             - bool: Returns true if the vector index exists, otherwise false.
         """
         indices = graph.list_indices()
+        for index in indices.result_set:
+            if index[0] == index_name:
+                continue
 
         return any(
             [
@@ -486,13 +494,15 @@ class FalkorDBAdapter:
                     clean_properties[key] = str(value)
                 elif isinstance(value, dict):
                     clean_properties[key] = json.dumps(value)
-                elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], float):
-                    # This is likely a vector - convert to string representation
-                    clean_properties[key] = f"vecf32({value})"
                 else:
                     clean_properties[key] = value
+        query = dedent(f"""
+            MERGE (node:{properties["type"]} {{id: $node_id}})
+            SET node += $properties, node.updated_at = timestamp()
+            """).strip()
+        for field in properties["metadata"]["index_fields"]:
+            query = query + f", node.{field}_vector = vecf32({properties[f'{field}_vector']})"
 
-        query = "MERGE (node {id: $node_id}) SET node += $properties, node.updated_at = timestamp()"
         params = {"node_id": node_id, "properties": clean_properties}
 
         self.query(query, params)
@@ -538,7 +548,28 @@ class FalkorDBAdapter:
                 await self.add_node(node_id, properties)
             elif hasattr(node, "id") and hasattr(node, "model_dump"):
                 # Node is a DataPoint object
-                await self.add_node(str(node.id), node.model_dump())
+                # TODO: Figure out how to get this data if node is of type Node, not DataPoint
+                embeddable_values = []
+                property_names = DataPoint.get_embeddable_property_names(node)  # type: ignore
+                vector_map = {}
+                for property_name in property_names:
+                    property_value = getattr(node, property_name, None)
+                    if property_value is not None:
+                        vector_map[property_name] = len(embeddable_values)
+                        embeddable_values.append(property_value)
+                vectorized_values = await self.embed_data(embeddable_values)
+
+                properties = {
+                    **node.model_dump(),
+                    **(
+                        {
+                            f"{property_name}_vector": (vectorized_values[index])
+                            for index, property_name in enumerate(property_names)
+                        }
+                    ),
+                }
+
+                await self.add_node(str(node.id), properties)
             else:
                 raise ValueError(
                     f"Invalid node format: {node}. Expected tuple (node_id, properties)"
@@ -630,7 +661,7 @@ class FalkorDBAdapter:
             Returns the result set containing the retrieved nodes or an empty list if not found.
         """
         result = self.query(
-            "MATCH (node) WHERE node.id IN $node_ids RETURN node",
+            "MATCH (node) WHERE node.name IN $node_ids RETURN node",
             {
                 "node_ids": [str(data_point) for data_point in data_point_ids],
             },
@@ -659,7 +690,7 @@ class FalkorDBAdapter:
         if not node:
             return None
 
-        return node
+        return node.properties
 
     async def extract_nodes(self, data_point_ids: list[UUID]) -> list[NodeData]:
         """
@@ -703,20 +734,28 @@ class FalkorDBAdapter:
         RETURN node, relation, neighbour
         """
 
-        predecessors, successors = await asyncio.gather(
-            self.query(predecessors_query, dict(node_id=node_id)),
-            self.query(successors_query, dict(node_id=node_id)),
-        )
+        predecessors = self.query(predecessors_query, dict(node_id=node_id))
+        successors = self.query(successors_query, dict(node_id=node_id))
 
         connections = []
 
-        for neighbour in predecessors:
-            neighbour = neighbour["relation"]
-            connections.append((neighbour[0], {"relationship_name": neighbour[1]}, neighbour[2]))
+        for neighbour in predecessors.result_set:
+            connections.append(
+                (
+                    neighbour[0].properties,
+                    {"relationship_name": neighbour[1].properties},
+                    neighbour[2].properties,
+                )
+            )
 
-        for neighbour in successors:
-            neighbour = neighbour["relation"]
-            connections.append((neighbour[0], {"relationship_name": neighbour[1]}, neighbour[2]))
+        for neighbour in successors.result_set:
+            connections.append(
+                (
+                    neighbour[0].properties,
+                    {"relationship_name": neighbour[1].properties["relationship_name"]},
+                    neighbour[2].properties,
+                )
+            )
 
         return connections
 
@@ -725,7 +764,7 @@ class FalkorDBAdapter:
         collection_name: str,
         query_text: str | None = None,
         query_vector: list[float] | None = None,
-        limit: int | None = 10,
+        limit: int | None = None,
         with_vector: bool = False,
     ) -> list:
         """
@@ -755,46 +794,52 @@ class FalkorDBAdapter:
         if query_text and not query_vector:
             query_vector = (await self.embed_data([query_text]))[0]
 
+        if "_" in collection_name:
+            label, _, attribute_name = collection_name.partition("_")
+        else:
+            # If no dot, treat the whole thing as a property search
+            label = ""
+            attribute_name = collection_name
+
+        graph = self.driver.select_graph(self.graph_name)
+        if not self.has_vector_index(graph, label, f"{attribute_name}_vector"):
+            raise CollectionNotFoundError(f"No vector index found for collection {collection_name}")
+
         if limit is None:
-            query = "MATCH (n) RETURN COUNT(n)"
+            query = f"MATCH (n) RETURN COUNT(n)"
             result = self.query(query)
             limit = result.result_set[0][0]
 
         if limit == 0:
             return []
 
-        # For FalkorDB, let's do a simple property-based search instead of vector search for now
-        # since the vector index might not be set up correctly
-        if "." in collection_name:
-            [label, attribute_name] = collection_name.split(".")
-        else:
-            # If no dot, treat the whole thing as a property search
-            label = ""
-            attribute_name = collection_name
+        query = dedent(f"""
+        CALL db.idx.vector.queryNodes(
+            '{label}',
+            '{attribute_name}_vector',
+            {limit},
+            vecf32({query_vector}))
+        YIELD node, score
+        """).strip()
 
-        # Simple text-based search if we have query_text
-        if query_text:
-            if label:
-                query = f"""
-                MATCH (n:{label})
-                WHERE toLower(toString(n.{attribute_name})) CONTAINS toLower($query_text)
-                RETURN n, 1.0 as score
-                LIMIT $limit
-                """
-            else:
-                query = f"""
-                MATCH (n)
-                WHERE toLower(toString(n.{attribute_name})) CONTAINS toLower($query_text)
-                RETURN n, 1.0 as score
-                LIMIT $limit
-                """
+        search_results = self.query(query)
 
-            params = {"query_text": query_text, "limit": limit}
-            result = self.query(query, params)
-            return result.result_set  # type: ignore
-        else:
-            # For vector search, return empty for now since vector indexing needs proper setup
-            return []
+        # Convert results to ScoredResult objects
+        scored_results = []
+        for result in search_results.result_set:
+            payload_data = result[0].properties
+            if "name" in payload_data:
+                payload_data["text"] = payload_data["name"]
+
+            scored_result = ScoredResult(
+                id=parse_id(result[0].properties["id"]),
+                score=result[1],
+                payload=payload_data,
+                vector=result[0].properties[f"{attribute_name}_vector"] if with_vector else None,
+            )
+            scored_results.append(scored_result)
+
+        return scored_results
 
     async def batch_search(
         self,

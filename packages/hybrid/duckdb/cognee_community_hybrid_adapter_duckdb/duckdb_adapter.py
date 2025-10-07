@@ -286,7 +286,7 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
             )
             return []
 
-        if limit is None:
+        if limit is None or limit == 0:
             search_query = f"""select count(*) from {collection_name}"""
             count = await self._execute_query_one(search_query)
             if count is None:
@@ -331,13 +331,13 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
             for row in search_results:
                 distance = row[4]  # distance is the 5th column (index 4)
 
-                1.0 / (1.0 + distance) if distance >= 0 else 0.0
+                score = 1.0 / (1.0 + distance) if distance >= 0 else 0.0
                 # Parse the payload JSON
                 payload_data = json.loads(row[3]) if row[3] else {}
 
                 result = ScoredResult(
                     id=parse_id(row[0]),
-                    score=distance,
+                    score=score,
                     payload=payload_data,
                     vector=row[2] if with_vector else None,
                 )

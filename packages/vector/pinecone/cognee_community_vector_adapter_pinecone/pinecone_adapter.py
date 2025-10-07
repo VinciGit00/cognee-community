@@ -56,7 +56,15 @@ class PineconeAdapter(VectorDBInterface):
     cloud: str = None
     region: str = None
 
-    def __init__(self, url, api_key, embedding_engine: EmbeddingEngine, environment: str = None, cloud: str = None, region: str = None):
+    def __init__(
+        self,
+        url,
+        api_key,
+        embedding_engine: EmbeddingEngine,
+        environment: str = None,
+        cloud: str = None,
+        region: str = None,
+    ):
         self.url = url  # Not used by Pinecone, but required by Cognee interface
         self.api_key = api_key
         self.environment = environment
@@ -95,10 +103,7 @@ class PineconeAdapter(VectorDBInterface):
                         name=collection_name,
                         dimension=self.embedding_engine.get_vector_size(),
                         metric="cosine",
-                        spec=ServerlessSpec(
-                            cloud=self.cloud,
-                            region=self.region
-                        )
+                        spec=ServerlessSpec(cloud=self.cloud, region=self.region),
                     )
                     logger.info("Created Pinecone index: %s", collection_name)
                 except Exception as e:
@@ -108,9 +113,7 @@ class PineconeAdapter(VectorDBInterface):
     async def create_data_points(self, collection_name: str, data_points: list[DataPoint]):
         try:
             if not await self.has_collection(collection_name):
-                raise CollectionNotFoundError(
-                    message=f"Collection {collection_name} not found!"
-                )
+                raise CollectionNotFoundError(message=f"Collection {collection_name} not found!")
 
             index = self.get_pinecone_index(collection_name)
 
@@ -127,7 +130,9 @@ class PineconeAdapter(VectorDBInterface):
                     if key != "metadata":  # Skip the nested metadata field that causes issues
                         if isinstance(value, (str, int, float, bool)):
                             clean_metadata[key] = value
-                        elif isinstance(value, list) and all(isinstance(item, str) for item in value):
+                        elif isinstance(value, list) and all(
+                            isinstance(item, str) for item in value
+                        ):
                             clean_metadata[key] = value
                         else:
                             # Convert complex types to strings
@@ -136,7 +141,7 @@ class PineconeAdapter(VectorDBInterface):
                 return {
                     "id": str(data_point.id),
                     "values": data_vectors[data_points.index(data_point)],
-                    "metadata": clean_metadata
+                    "metadata": clean_metadata,
                 }
 
             vectors = [convert_to_pinecone_vector(point) for point in data_points]
@@ -170,9 +175,7 @@ class PineconeAdapter(VectorDBInterface):
     async def retrieve(self, collection_name: str, data_point_ids: list[str]):
         try:
             if not await self.has_collection(collection_name):
-                raise CollectionNotFoundError(
-                    message=f"Collection {collection_name} not found!"
-                )
+                raise CollectionNotFoundError(message=f"Collection {collection_name} not found!")
 
             index = self.get_pinecone_index(collection_name)
             results = index.fetch(ids=data_point_ids)
@@ -228,10 +231,7 @@ class PineconeAdapter(VectorDBInterface):
                 return []
 
             results = index.query(
-                vector=query_vector,
-                top_k=limit,
-                include_metadata=True,
-                include_values=with_vector
+                vector=query_vector, top_k=limit, include_metadata=True, include_values=with_vector
             )
 
             return [
@@ -241,7 +241,8 @@ class PineconeAdapter(VectorDBInterface):
                         **match.metadata,
                         "id": parse_id(match.id),
                     },
-                    score=match.score,  # Pinecone returns similarity score (0-1, higher = more similar)
+                    # Pinecone returns similarity score (0-1, higher = more similar)
+                    score=match.score,
                 )
                 for match in results.matches
             ]
@@ -276,7 +277,8 @@ class PineconeAdapter(VectorDBInterface):
 
         if not await self.has_collection(collection_name):
             logger.warning(
-                f"Collection '{collection_name}' not found in PineconeAdapter.batch_search; returning empty results."
+                f"Collection '{collection_name}' not found in PineconeAdapter.batch_search;"
+                f"returning empty results."
             )
             return [[] for _ in query_texts]
 
@@ -291,7 +293,7 @@ class PineconeAdapter(VectorDBInterface):
                         vector=vector,
                         top_k=limit,
                         include_metadata=True,
-                        include_values=with_vectors
+                        include_values=with_vectors,
                     )
 
                     # Convert to ScoredResult objects (no filtering to match other adapters)
@@ -321,9 +323,7 @@ class PineconeAdapter(VectorDBInterface):
     async def delete_data_points(self, collection_name: str, data_point_ids: list[str]):
         try:
             if not await self.has_collection(collection_name):
-                raise CollectionNotFoundError(
-                    message=f"Collection {collection_name} not found!"
-                )
+                raise CollectionNotFoundError(message=f"Collection {collection_name} not found!")
 
             index = self.get_pinecone_index(collection_name)
             results = index.delete(ids=data_point_ids)
