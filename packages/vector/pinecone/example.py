@@ -29,11 +29,13 @@ async def main():
     config.set_vector_db_config(
         {
             "vector_db_provider": "pinecone",
-            "vector_db_url": os.getenv("PINECONE_API_URL", "https://api.pinecone.io"),  # Allow override via env var
+            "vector_db_url": os.getenv(
+                "PINECONE_API_URL", "https://api.pinecone.io"
+            ),  # Allow override via env var
             "vector_db_key": os.getenv("PINECONE_API_KEY", "your-pinecone-api-key"),
             # "environment": os.getenv("PINECONE_ENVIRONMENT", None),  # Optional
             # "cloud": os.getenv("PINECONE_CLOUD", "aws"),  # Optional, defaults to aws
-            # "region": os.getenv("PINECONE_REGION", "us-east-1"),  # Optional, defaults to us-east-1
+            # "region": os.getenv("PINECONE_REGION", "us-east-1"),  # Optional, default us-east-1
         }
     )
 
