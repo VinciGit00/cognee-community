@@ -1320,7 +1320,7 @@ class FalkorDBAdapter:
         await self.delete_graph()
 
     async def is_empty(self) -> bool:
-        query = f"MATCH (n) RETURN COUNT(n)"
+        query = "MATCH (n) RETURN COUNT(n)"
         result = self.query(query)
         return result.result_set[0][0] == 0
 
