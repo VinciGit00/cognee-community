@@ -96,6 +96,7 @@ class FalkorDBAdapter:
         embedding_engine: EmbeddingEngine | None = None,
         url: str | None = None,
         api_key: str | None = None,
+        graph_name: str | None = "cognee_graph",
     ):
         self.driver = FalkorDB(
             host=url if url else graph_database_url,
@@ -104,7 +105,7 @@ class FalkorDBAdapter:
             password=graph_database_password,
         )
         self.embedding_engine = get_embedding_engine() if not embedding_engine else embedding_engine
-        self.graph_name = "cognee_graph"
+        self.graph_name = graph_name
         self.api_key = api_key
 
     # TODO: This should return a list of results, not a single result
@@ -1317,6 +1318,11 @@ class FalkorDBAdapter:
         Prune the graph by deleting the entire graph structure.
         """
         await self.delete_graph()
+
+    async def is_empty(self) -> bool:
+        query = f"MATCH (n) RETURN COUNT(n)"
+        result = self.query(query)
+        return result.result_set[0][0] == 0
 
 
 if TYPE_CHECKING:
