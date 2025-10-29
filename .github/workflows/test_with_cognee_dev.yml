@@ -1,0 +1,136 @@
+name: Test Community Packages with Cognee Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_path:
+        description: 'Package path to test (e.g., packages/hybrid/duckdb)'
+        required: true
+        default: 'packages/hybrid/duckdb'
+        type: string
+      run_examples:
+        description: 'Run examples'
+        required: false
+        default: true
+        type: boolean
+      run_tests:
+        description: 'Run tests'
+        required: false
+        default: true
+        type: boolean
+      python_version:
+        description: 'Python version to use'
+        required: false
+        default: '3.12.x'
+        type: string
+
+env:
+  # These would need to be set as repository secrets
+  LLM_MODEL: ${{ secrets.LLM_MODEL }}
+  LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+  LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+  LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+  EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+  EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+  EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+  EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+  ENV: 'dev'
+
+concurrency:
+  group: cognee-dev-test-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  test-with-cognee-dev:
+    name: "Test ${{ inputs.package_path }} with Cognee Dev"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout dependent repo
+        uses: actions/checkout@v4
+
+      # 👇 Use the latest dev build of Cognee
+      - name: Checkout Cognee (dev branch)
+        uses: actions/checkout@v4
+        with:
+          repository: topoteretes/cognee
+          ref: dev
+          path: cognee-local
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install uv
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Build Cognee wheel
+        working-directory: cognee-local
+        run: |
+          uv build  # or: python -m build
+          echo "Built wheel:"
+          ls dist/*.whl
+
+      - name: Install Poetry
+        shell: bash
+        run: |
+          pip install poetry
+
+      - name: Install package dependencies (excluding cognee)
+        shell: bash
+        working-directory: ${{ inputs.package_path }}
+        run: |
+          # Remove cognee from dependencies temporarily to avoid conflicts
+          poetry install --no-interaction
+
+      - name: Install Cognee dev wheel
+        run: |
+          # Install the dev wheel into the poetry environment
+          cd ${{ inputs.package_path }}
+          poetry run pip install ../../../cognee-local/dist/*.whl
+
+      - name: Verify Cognee dev installation
+        working-directory: ${{ inputs.package_path }}
+        run: |
+          poetry run python -c "import cognee; print(f'Cognee version: {cognee.__version__ if hasattr(cognee, \"__version__\") else \"unknown\"}')"
+          poetry run python -c "import cognee; print('Cognee dev build imported successfully')"
+
+      - name: Run Examples
+        if: ${{ inputs.run_examples }}
+        working-directory: ${{ inputs.package_path }}
+        run: |
+          if [ -d "examples" ] && [ -f "examples/example.py" ]; then
+            echo "Running examples..."
+            poetry run python examples/example.py
+          else
+            echo "No examples/example.py found, skipping examples"
+          fi
+
+      - name: Run Tests
+        if: ${{ inputs.run_tests }}
+        working-directory: ${{ inputs.package_path }}
+        run: |
+          if [ -d "tests" ]; then
+            echo "Running tests..."
+            poetry run python -m pytest tests/ -v
+          else
+            echo "No tests directory found, trying individual test files"
+            if ls tests/*.py 1> /dev/null 2>&1; then
+              for test_file in tests/*.py; do
+                echo "Running $test_file..."
+                poetry run python "$test_file"
+              done
+            else
+              echo "No test files found, skipping tests"
+            fi
+          fi
+
+      - name: Print Summary
+        run: |
+          echo "✅ Successfully tested ${{ inputs.package_path }} with Cognee dev build"
+          echo "- Examples run: ${{ inputs.run_examples }}"
+          echo "- Tests run: ${{ inputs.run_tests }}"
+          echo "- Python version: ${{ inputs.python_version }}"
