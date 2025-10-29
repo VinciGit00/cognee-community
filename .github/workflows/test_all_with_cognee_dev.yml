@@ -1,0 +1,161 @@
+name: Test All Community Packages with Cognee Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      cognee_ref:
+        description: 'Cognee branch/tag/commit to test with'
+        required: false
+        default: 'dev'
+        type: string
+      packages:
+        description: 'Comma-separated list of packages to test (or "all")'
+        required: false
+        default: 'packages/hybrid/duckdb,packages/vector/qdrant'
+        type: string
+      python_version:
+        description: 'Python version to use'
+        required: false
+        default: '3.12.x'
+        type: string
+
+concurrency:
+  group: all-cognee-dev-test-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: "Prepare package list"
+    runs-on: ubuntu-22.04
+    outputs:
+      packages: ${{ steps.parse.outputs.packages }}
+    steps:
+      - name: Parse package list
+        id: parse
+        run: |
+          if [ "${{ inputs.packages }}" = "all" ]; then
+            # Define all available packages
+            packages='["packages/hybrid/duckdb","packages/vector/qdrant","packages/vector/weaviate","packages/vector/opensearch","packages/vector/redis","packages/vector/milvus","packages/graph/memgraph"]'
+          else
+            # Convert comma-separated string to JSON array
+            packages=$(echo '${{ inputs.packages }}' | jq -R 'split(",") | map(select(length > 0))')
+          fi
+          echo "packages=$packages" >> $GITHUB_OUTPUT
+          echo "Will test packages: $packages"
+
+  test-packages:
+    name: "Test ${{ matrix.package }}"
+    needs: prepare
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.prepare.outputs.packages) }}
+    steps:
+      - name: Checkout dependent repo
+        uses: actions/checkout@v4
+
+      # 👇 Use the specified build of Cognee
+      - name: Checkout Cognee
+        uses: actions/checkout@v4
+        with:
+          repository: topoteretes/cognee
+          ref: ${{ inputs.cognee_ref }}
+          path: cognee-local
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install uv and Poetry
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv poetry
+
+      - name: Build Cognee wheel
+        working-directory: cognee-local
+        run: |
+          uv build
+          echo "Built wheel:"
+          ls dist/*.whl
+
+      - name: Install package dependencies
+        shell: bash
+        working-directory: ${{ matrix.package }}
+        run: |
+          poetry install --no-interaction
+
+      - name: Install Cognee dev wheel
+        run: |
+          cd ${{ matrix.package }}
+          poetry run pip install --force-reinstall ../../cognee-local/dist/*.whl
+
+      - name: Verify Cognee installation
+        working-directory: ${{ matrix.package }}
+        run: |
+          poetry run python -c "import cognee; print(f'Cognee version: {cognee.__version__ if hasattr(cognee, \"__version__\") else \"unknown\"}')"
+
+      - name: Run Examples
+        working-directory: ${{ matrix.package }}
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'auto'  # Let the adapter determine
+        run: |
+          if [ -f "example.py" ]; then
+            echo "Running example.py..."
+            poetry run python example.py
+          elif [ -f "examples/example.py" ]; then
+            echo "Running examples/example.py..."
+            poetry run python examples/example.py
+          else
+            echo "No example file found, skipping examples"
+          fi
+
+      - name: Run Tests
+        working-directory: ${{ matrix.package }}
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'auto'
+        run: |
+          if [ -d "tests" ]; then
+            echo "Running tests..."
+            if ls tests/*.py 1> /dev/null 2>&1; then
+              for test_file in tests/*.py; do
+                echo "Running $test_file..."
+                poetry run python "$test_file"
+              done
+            fi
+          else
+            echo "No tests directory found, skipping tests"
+          fi
+
+  summary:
+    name: "Test Summary"
+    runs-on: ubuntu-22.04
+    needs: [prepare, test-packages]
+    if: always()
+    steps:
+      - name: Print results
+        run: |
+          echo "## Cognee Dev Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Cognee ref: ${{ inputs.cognee_ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Packages tested: ${{ needs.prepare.outputs.packages }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ needs.test-packages.result }}" >> $GITHUB_STEP_SUMMARY
