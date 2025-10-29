@@ -95,7 +95,9 @@ jobs:
       - name: Verify Cognee installation
         working-directory: ${{ matrix.package }}
         run: |
-          poetry run python -c "import cognee; print(f'Cognee version: {cognee.__version__ if hasattr(cognee, \"__version__\") else \"unknown\"}')"
+          echo "Installed Cognee version:"
+          poetry run pip show cognee | grep Version || echo "Could not get version"
+          poetry run python -c "import cognee; print('✅ Cognee dev build imported successfully')"
 
       - name: Run Examples
         working-directory: ${{ matrix.package }}
