@@ -95,8 +95,9 @@ jobs:
       - name: Verify Cognee dev installation
         working-directory: ${{ inputs.package_path }}
         run: |
-          poetry run python -c "import cognee; print(f'Cognee version: {cognee.__version__ if hasattr(cognee, \"__version__\") else \"unknown\"}')"
-          poetry run python -c "import cognee; print('Cognee dev build imported successfully')"
+          echo "Installed Cognee version:"
+          poetry run pip show cognee | grep Version || echo "Could not get version"
+          poetry run python -c "import cognee; print('✅ Cognee dev build imported successfully')"
 
       - name: Run Examples
         if: ${{ inputs.run_examples }}
