@@ -1042,4 +1042,3 @@ class NetworkXAdapter(GraphDBInterface):
 
     async def is_empty(self):
         return self.graph.number_of_nodes() == 0 and self.graph.number_of_edges() == 0
-

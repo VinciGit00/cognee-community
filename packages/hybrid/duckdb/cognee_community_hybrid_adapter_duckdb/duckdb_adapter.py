@@ -550,6 +550,7 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         """[GRAPH] Check if graph is empty."""
         raise NotImplementedError("Graph operations are not implemented for DuckDB adapter")
 
+
 if TYPE_CHECKING:
     # Test with in-memory database (no URL)
     _a: VectorDBInterface = DuckDBAdapter()
