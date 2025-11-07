@@ -546,6 +546,9 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         """[GRAPH] Get connections for a node."""
         raise NotImplementedError("Graph operations are not implemented for DuckDB adapter")
 
+    async def is_empty(self):
+        """[GRAPH] Check if graph is empty."""
+        raise NotImplementedError("Graph operations are not implemented for DuckDB adapter")
 
 if TYPE_CHECKING:
     # Test with in-memory database (no URL)
