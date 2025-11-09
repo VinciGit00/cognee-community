@@ -4,17 +4,20 @@
     <head>
         <meta charset="utf-8">
         <script src="https://d3js.org/d3.v5.min.js"></script>
+        <script src="https://d3js.org/d3-contour.v1.min.js"></script>
         <style>
             body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: linear-gradient(90deg, #101010, #1a1a2e); color: white; font-family: 'Inter', sans-serif; }
 
             svg { width: 100vw; height: 100vh; display: block; }
-            .links line { stroke: rgba(255, 255, 255, 0.4); stroke-width: 2px; }
-            .links line.weighted { stroke: rgba(255, 215, 0, 0.7); }
-            .links line.multi-weighted { stroke: rgba(0, 255, 127, 0.8); }
-            .nodes circle { stroke: white; stroke-width: 0.5px; filter: drop-shadow(0 0 5px rgba(255,255,255,0.3)); }
-            .node-label { font-size: 5px; font-weight: bold; fill: white; text-anchor: middle; dominant-baseline: middle; font-family: 'Inter', sans-serif; pointer-events: none; }
-            .edge-label { font-size: 3px; fill: rgba(255, 255, 255, 0.7); text-anchor: middle; dominant-baseline: middle; font-family: 'Inter', sans-serif; pointer-events: none; }
-            
+            .links line { stroke: rgba(160, 160, 160, 0.25); stroke-width: 1.5px; stroke-linecap: round; }
+            .links line.weighted { stroke: rgba(255, 215, 0, 0.4); }
+            .links line.multi-weighted { stroke: rgba(0, 255, 127, 0.45); }
+            .nodes circle { stroke: white; stroke-width: 0.5px; }
+            .node-label { font-size: 5px; font-weight: bold; fill: #F4F4F4; text-anchor: middle; dominant-baseline: middle; font-family: 'Inter', sans-serif; pointer-events: none; }
+            .edge-label { font-size: 3px; fill: #F4F4F4; text-anchor: middle; dominant-baseline: middle; font-family: 'Inter', sans-serif; pointer-events: none; paint-order: stroke; stroke: rgba(50,51,50,0.75); stroke-width: 1px; }
+
+            .density path { mix-blend-mode: screen; }
+
             .tooltip {
                 position: absolute;
                 text-align: left;
@@ -31,14 +34,35 @@
                 max-width: 300px;
                 word-wrap: break-word;
             }
+            #info-panel {
+                position: fixed;
+                left: 12px;
+                top: 12px;
+                width: 340px;
+                max-height: calc(100vh - 24px);
+                overflow: auto;
+                background: rgba(50, 51, 50, 0.7);
+                backdrop-filter: blur(6px);
+                border: 1px solid rgba(216, 216, 216, 0.35);
+                border-radius: 8px;
+                color: #F4F4F4;
+                padding: 12px 14px;
+                z-index: 1100;
+            }
+            #info-panel h3 { margin: 0 0 8px 0; font-size: 14px; color: #F4F4F4; }
+            #info-panel .kv { font-size: 12px; line-height: 1.4; }
+            #info-panel .kv .k { color: #D8D8D8; }
+            #info-panel .kv .v { color: #F4F4F4; }
+            #info-panel .placeholder { opacity: 0.7; font-size: 12px; }
         </style>
     </head>
     <body>
         <svg></svg>
         <div class="tooltip" id="tooltip"></div>
+        <div id="info-panel"><div class="placeholder">Hover a node or edge to inspect details</div></div>
         <script>
-            var nodes = [{"chunk_index": 0, "chunk_size": 27, "cut_type": "sentence_end", "id": "141", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision allows machines to interpret and make decisionsbased on visual information.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "141"}, {"description": "Field of study that enables machines to extract information from visual inputs and make decisions.", "id": "142", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computer vision", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "concept", "id": "143", "metadata": "{\"index_fields\": [\"name\"]}", "name": "concept", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#6510f4"}, {"description": "Computational systems or devices that process information and perform actions.", "id": "144", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machines", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "object", "id": "145", "metadata": "{\"index_fields\": [\"name\"]}", "name": "object", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#6510f4"}, {"description": "The act of extracting meaning or understanding from visual information.", "id": "146", "metadata": "{\"index_fields\": [\"name\"]}", "name": "interpret", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "process", "id": "147", "metadata": "{\"index_fields\": [\"name\"]}", "name": "process", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#6510f4"}, {"description": "The act of selecting actions or outputs based on processed information.", "id": "148", "metadata": "{\"index_fields\": [\"name\"]}", "name": "make decisions", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Data derived from images, video, or other visual inputs.", "id": "149", "metadata": "{\"index_fields\": [\"name\"]}", "name": "visual information", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"external_metadata": "{}", "id": "150", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_73318cb2b9ade3c9b1201abe6c52ee40", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_73318cb2b9ade3c9b1201abe6c52ee40.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "151", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision enables machines to analyze visual data and make informed decisions.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "151"}, {"chunk_index": 0, "chunk_size": 25, "cut_type": "sentence_end", "id": "152", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Natural language processing enables computers to understand and process human language.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "152"}, {"description": "Field that enables computers to understand and process human language", "id": "153", "metadata": "{\"index_fields\": [\"name\"]}", "name": "natural language processing", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Machines capable of performing computations and running algorithms", "id": "154", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computers", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "device", "id": "155", "metadata": "{\"index_fields\": [\"name\"]}", "name": "device", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#6510f4"}, {"description": "Natural languages used by humans for communication", "id": "156", "metadata": "{\"index_fields\": [\"name\"]}", "name": "human language", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"external_metadata": "{}", "id": "157", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_d5ffc3e92ccb67a18b3d147cc69dc0d7", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_d5ffc3e92ccb67a18b3d147cc69dc0d7.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "158", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "NLP lets computers interpret and process human language.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "158"}, {"chunk_index": 0, "chunk_size": 34, "cut_type": "sentence_end", "id": "159", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is a subset of AI that focuses on algorithms that can learn from data.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "159"}, {"description": "A field of study that enables systems to learn from data; includes deep learning as a subset.", "id": "160", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machine learning", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Artificial intelligence", "id": "161", "metadata": "{\"index_fields\": [\"name\"]}", "name": "ai", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Procedures or methods; here, algorithms that can learn from data", "id": "162", "metadata": "{\"index_fields\": [\"name\"]}", "name": "algorithms", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Information used for training or learning", "id": "163", "metadata": "{\"index_fields\": [\"name\"]}", "name": "data", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"external_metadata": "{}", "id": "164", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_f410ffdeb8789434bd07ad0062e1d647", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_f410ffdeb8789434bd07ad0062e1d647.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "165", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is a branch of artificial intelligence that builds algorithms to learn from data.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "165"}, {"chunk_index": 0, "chunk_size": 32, "cut_type": "sentence_end", "id": "166", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a subset of machine learning that uses neural networks with many layers.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "166"}, {"description": "A subset of machine learning that uses neural networks with many layers.", "id": "167", "metadata": "{\"index_fields\": [\"name\"]}", "name": "deep learning", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Computational models composed of interconnected units (neurons) used by deep learning.", "id": "168", "metadata": "{\"index_fields\": [\"name\"]}", "name": "neural networks", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Characteristic of deep neural networks referring to multiple stacked computational layers.", "id": "169", "metadata": "{\"index_fields\": [\"name\"]}", "name": "many layers", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"external_metadata": "{}", "id": "170", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_6cc7f196cd6a51f4636a43e359aa9396", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_6cc7f196cd6a51f4636a43e359aa9396.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "171", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a branch of machine learning that uses multi-layer (deep) neural networks.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "171"}, {"chunk_index": 0, "chunk_size": 30, "cut_type": "sentence_end", "id": "172", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Artificial intelligence is a branch of computer science that aims tocreate intelligent machines.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "172"}, {"description": "Branch of computer science that aims to create intelligent machines.", "id": "173", "metadata": "{\"index_fields\": [\"name\"]}", "name": "artificial intelligence", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Academic field; the discipline of computation mentioned as the parent field of artificial intelligence.", "id": "174", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computer science", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "field", "id": "175", "metadata": "{\"index_fields\": [\"name\"]}", "name": "field", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#6510f4"}, {"description": "Machines that exhibit intelligence; the intended result of artificial intelligence.", "id": "176", "metadata": "{\"index_fields\": [\"name\"]}", "name": "intelligent machines", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"external_metadata": "{}", "id": "177", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_eb6c3b3111581d625c8b266425803d3d", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_eb6c3b3111581d625c8b266425803d3d.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "178", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "AI is a subfield of computer science focused on developing systems that demonstrate intelligent behavior.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "178"}, {"chunk_index": 0, "chunk_size": 34, "cut_type": "sentence_end", "id": "179", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is a subset of AI that focuses on algorithms that can learn from data.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "179"}, {"external_metadata": "{}", "id": "180", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_f410ffdeb8789434bd07ad0062e1d647", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_f410ffdeb8789434bd07ad0062e1d647.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "181", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is a branch of artificial intelligence that creates algorithms to learn from data.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "181"}, {"chunk_index": 0, "chunk_size": 25, "cut_type": "sentence_end", "id": "182", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Natural language processing enables computers to understand and process human language.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "182"}, {"external_metadata": "{}", "id": "183", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_d5ffc3e92ccb67a18b3d147cc69dc0d7", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_d5ffc3e92ccb67a18b3d147cc69dc0d7.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "184", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "NLP lets machines interpret and work with human language.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "184"}, {"chunk_index": 0, "chunk_size": 32, "cut_type": "sentence_end", "id": "185", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a subset of machine learning that uses neural networks with many layers.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "185"}, {"description": "A level within a neural network; deep neural networks have many layers.", "id": "186", "metadata": "{\"index_fields\": [\"name\"]}", "name": "layer", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"external_metadata": "{}", "id": "187", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_6cc7f196cd6a51f4636a43e359aa9396", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_6cc7f196cd6a51f4636a43e359aa9396.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "188", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a branch of machine learning that uses deep (multi-layer) neural networks.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "188"}, {"chunk_index": 0, "chunk_size": 27, "cut_type": "sentence_end", "id": "189", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision allows machines to interpret and make decisionsbased on visual information.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "189"}, {"description": "machine", "id": "190", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machine", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#6510f4"}, {"description": "information", "id": "191", "metadata": "{\"index_fields\": [\"name\"]}", "name": "information", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#6510f4"}, {"description": "Process of extracting meaning or features from visual information.", "id": "192", "metadata": "{\"index_fields\": [\"name\"]}", "name": "interpretation", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"description": "Process of selecting actions or outcomes based on interpreted information.", "id": "193", "metadata": "{\"index_fields\": [\"name\"]}", "name": "decision making", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#f47710"}, {"external_metadata": "{}", "id": "194", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_73318cb2b9ade3c9b1201abe6c52ee40", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_73318cb2b9ade3c9b1201abe6c52ee40.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "195", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision enables machines to perceive and interpret visual data to guide decisions.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "195"}, {"chunk_index": 0, "chunk_size": 30, "cut_type": "sentence_end", "id": "196", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Artificial intelligence is a branch of computer science that aims tocreate intelligent machines.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#801212", "name": "196"}, {"external_metadata": "{}", "id": "197", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_eb6c3b3111581d625c8b266425803d3d", "ontology_valid": false, "raw_data_location": "file:///home/siillee/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_eb6c3b3111581d625c8b266425803d3d.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"id": "198", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "AI is a computer-science subfield focused on creating machines that display intelligence.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#1077f4", "name": "198"}];
-            var links = [{"source": "141", "target": "142", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "050763e5-1ce7-5f6d-8bb7-bbbcbe4153ca", "target_node_id": "4892a8ad-991e-58f6-a1a5-eb9c22c16488", "updated_at": 1756982707940788}}, {"source": "141", "target": "144", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "050763e5-1ce7-5f6d-8bb7-bbbcbe4153ca", "target_node_id": "e1cdb5bc-15a1-5b58-9cd0-23f5eb11a49d", "updated_at": 1756982707940788}}, {"source": "141", "target": "146", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "050763e5-1ce7-5f6d-8bb7-bbbcbe4153ca", "target_node_id": "3d19a292-ce13-5c99-a09f-37226657754b", "updated_at": 1756982707940788}}, {"source": "141", "target": "148", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "050763e5-1ce7-5f6d-8bb7-bbbcbe4153ca", "target_node_id": "4ca376f5-1fa0-5c46-bf1e-442fb2be7e3f", "updated_at": 1756982707940788}}, {"source": "141", "target": "149", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "050763e5-1ce7-5f6d-8bb7-bbbcbe4153ca", "target_node_id": "dbcbfc2d-6099-53ef-8290-67f925cd2487", "updated_at": 1756982707940788}}, {"source": "142", "target": "144", "relation": "enables", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "enables", "source_node_id": "4892a8ad-991e-58f6-a1a5-eb9c22c16488", "target_node_id": "e1cdb5bc-15a1-5b58-9cd0-23f5eb11a49d", "updated_at": 1756983212602733}}, {"source": "151", "target": "141", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "34efe96d-f033-519a-aea7-3fa3b2610222", "target_node_id": "050763e5-1ce7-5f6d-8bb7-bbbcbe4153ca", "updated_at": 1756982716459168}}, {"source": "152", "target": "153", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "f820cd0f-e776-5476-9099-6b0341bac5c9", "target_node_id": "bc338a39-64d6-549a-acec-da60846dd90d", "updated_at": 1756982740319212}}, {"source": "152", "target": "154", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "f820cd0f-e776-5476-9099-6b0341bac5c9", "target_node_id": "bebbacfd-d284-52dc-9f8d-5fb58f63bdaf", "updated_at": 1756982740319212}}, {"source": "152", "target": "156", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "f820cd0f-e776-5476-9099-6b0341bac5c9", "target_node_id": "05c0874e-6330-5911-8149-b206b31e4d25", "updated_at": 1756982740319212}}, {"source": "153", "target": "154", "relation": "enables", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "enables", "source_node_id": "bc338a39-64d6-549a-acec-da60846dd90d", "target_node_id": "bebbacfd-d284-52dc-9f8d-5fb58f63bdaf", "updated_at": 1756983131293868}}, {"source": "158", "target": "152", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "e1ab2d5a-c609-5137-9485-7488f66db7fd", "target_node_id": "f820cd0f-e776-5476-9099-6b0341bac5c9", "updated_at": 1756982750912423}}, {"source": "159", "target": "160", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "3c5ced71-91c7-5f92-8a6f-13260624cd8c", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1756982771496667}}, {"source": "159", "target": "161", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "3c5ced71-91c7-5f92-8a6f-13260624cd8c", "target_node_id": "8348bd10-1457-57fe-b983-d0481fafcfc2", "updated_at": 1756982771496667}}, {"source": "159", "target": "162", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "3c5ced71-91c7-5f92-8a6f-13260624cd8c", "target_node_id": "655c4b9c-9097-5aa7-956c-c49afe4687f0", "updated_at": 1756982771496667}}, {"source": "159", "target": "163", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "3c5ced71-91c7-5f92-8a6f-13260624cd8c", "target_node_id": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "updated_at": 1756982771496667}}, {"source": "160", "target": "161", "relation": "subset_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "subset_of", "source_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "target_node_id": "8348bd10-1457-57fe-b983-d0481fafcfc2", "updated_at": 1756983100962437}}, {"source": "165", "target": "159", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "651a3b3a-ae4a-5baf-af92-a80f07bfda95", "target_node_id": "3c5ced71-91c7-5f92-8a6f-13260624cd8c", "updated_at": 1756982789001469}}, {"source": "166", "target": "160", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "70e81f7f-9302-5977-b4a4-b9d5d55ccbad", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1756982816861409}}, {"source": "166", "target": "167", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "70e81f7f-9302-5977-b4a4-b9d5d55ccbad", "target_node_id": "0d2c7a60-f91f-5b5c-a797-43baae69fb35", "updated_at": 1756982816861409}}, {"source": "166", "target": "168", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "70e81f7f-9302-5977-b4a4-b9d5d55ccbad", "target_node_id": "d245520e-4b42-52ab-af27-f26d161d8f2f", "updated_at": 1756982816861409}}, {"source": "166", "target": "169", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "70e81f7f-9302-5977-b4a4-b9d5d55ccbad", "target_node_id": "f44500cf-398e-553c-b008-05df0db80610", "updated_at": 1756982816861409}}, {"source": "167", "target": "160", "relation": "subset_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "subset_of", "source_node_id": "0d2c7a60-f91f-5b5c-a797-43baae69fb35", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1756982817388779}}, {"source": "167", "target": "160", "relation": "is_subset_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_subset_of", "source_node_id": "0d2c7a60-f91f-5b5c-a797-43baae69fb35", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1756983165788339}}, {"source": "171", "target": "166", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "7fff95f8-bbaa-5a03-b6f0-4d1ff1ba6a2c", "target_node_id": "70e81f7f-9302-5977-b4a4-b9d5d55ccbad", "updated_at": 1756982828165950}}, {"source": "172", "target": "173", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "26326d9c-72e8-5098-aef8-508e4dedab62", "target_node_id": "e850203f-866a-5bfd-b687-b73ac0d2b66a", "updated_at": 1756982845898961}}, {"source": "172", "target": "174", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "26326d9c-72e8-5098-aef8-508e4dedab62", "target_node_id": "6218dbab-eb6a-5759-a864-b3419755ffe0", "updated_at": 1756982845898961}}, {"source": "172", "target": "176", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "26326d9c-72e8-5098-aef8-508e4dedab62", "target_node_id": "9bc8fab8-5fa5-5875-9008-50d53c2d73a2", "updated_at": 1756982845898961}}, {"source": "173", "target": "174", "relation": "is_branch_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_branch_of", "source_node_id": "e850203f-866a-5bfd-b687-b73ac0d2b66a", "target_node_id": "6218dbab-eb6a-5759-a864-b3419755ffe0", "updated_at": 1756982846501033}}, {"source": "173", "target": "174", "relation": "is_a_branch_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_a_branch_of", "source_node_id": "e850203f-866a-5bfd-b687-b73ac0d2b66a", "target_node_id": "6218dbab-eb6a-5759-a864-b3419755ffe0", "updated_at": 1756983249473745}}, {"source": "178", "target": "172", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "f56d0d86-36ac-5ffd-afc6-5fdd166f7bd6", "target_node_id": "26326d9c-72e8-5098-aef8-508e4dedab62", "updated_at": 1756982856008196}}, {"source": "179", "target": "160", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "00c74da6-d45d-5b98-a074-962d308087e2", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1756983100496848}}, {"source": "179", "target": "161", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "00c74da6-d45d-5b98-a074-962d308087e2", "target_node_id": "8348bd10-1457-57fe-b983-d0481fafcfc2", "updated_at": 1756983100496848}}, {"source": "179", "target": "162", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "00c74da6-d45d-5b98-a074-962d308087e2", "target_node_id": "655c4b9c-9097-5aa7-956c-c49afe4687f0", "updated_at": 1756983100496848}}, {"source": "179", "target": "163", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "00c74da6-d45d-5b98-a074-962d308087e2", "target_node_id": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "updated_at": 1756983100496848}}, {"source": "181", "target": "179", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "4d7966df-10f5-5249-849b-50d49b88ad36", "target_node_id": "00c74da6-d45d-5b98-a074-962d308087e2", "updated_at": 1756983110223474}}, {"source": "182", "target": "153", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "78a7b0d7-9f4b-51fa-b87b-bcaa669842ef", "target_node_id": "bc338a39-64d6-549a-acec-da60846dd90d", "updated_at": 1756983130596527}}, {"source": "182", "target": "154", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "78a7b0d7-9f4b-51fa-b87b-bcaa669842ef", "target_node_id": "bebbacfd-d284-52dc-9f8d-5fb58f63bdaf", "updated_at": 1756983130596527}}, {"source": "182", "target": "156", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "78a7b0d7-9f4b-51fa-b87b-bcaa669842ef", "target_node_id": "05c0874e-6330-5911-8149-b206b31e4d25", "updated_at": 1756983130596527}}, {"source": "184", "target": "182", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "76624318-a5a1-5b24-896f-d04b346a9c66", "target_node_id": "78a7b0d7-9f4b-51fa-b87b-bcaa669842ef", "updated_at": 1756983139541495}}, {"source": "185", "target": "160", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "f9623154-8600-5b0a-a1b9-fffe980e509b", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1756983165142607}}, {"source": "185", "target": "167", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "f9623154-8600-5b0a-a1b9-fffe980e509b", "target_node_id": "0d2c7a60-f91f-5b5c-a797-43baae69fb35", "updated_at": 1756983165142607}}, {"source": "185", "target": "168", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "f9623154-8600-5b0a-a1b9-fffe980e509b", "target_node_id": "d245520e-4b42-52ab-af27-f26d161d8f2f", "updated_at": 1756983165142607}}, {"source": "185", "target": "186", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "f9623154-8600-5b0a-a1b9-fffe980e509b", "target_node_id": "74c98a70-7127-59fe-953e-288496f98b66", "updated_at": 1756983165142607}}, {"source": "188", "target": "185", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "486803c3-331f-561c-93ce-b4a04dd14efe", "target_node_id": "f9623154-8600-5b0a-a1b9-fffe980e509b", "updated_at": 1756983177843009}}, {"source": "189", "target": "142", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "c83f8efd-26e2-5d39-b8f0-e1649d2f7a0b", "target_node_id": "4892a8ad-991e-58f6-a1a5-eb9c22c16488", "updated_at": 1756983211923162}}, {"source": "189", "target": "144", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "c83f8efd-26e2-5d39-b8f0-e1649d2f7a0b", "target_node_id": "e1cdb5bc-15a1-5b58-9cd0-23f5eb11a49d", "updated_at": 1756983211923162}}, {"source": "189", "target": "149", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "c83f8efd-26e2-5d39-b8f0-e1649d2f7a0b", "target_node_id": "dbcbfc2d-6099-53ef-8290-67f925cd2487", "updated_at": 1756983211923162}}, {"source": "189", "target": "192", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "c83f8efd-26e2-5d39-b8f0-e1649d2f7a0b", "target_node_id": "c22af41c-d137-55d4-801e-0e75f9154d64", "updated_at": 1756983211923162}}, {"source": "189", "target": "193", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "c83f8efd-26e2-5d39-b8f0-e1649d2f7a0b", "target_node_id": "e767f843-0763-5adc-8a30-8953cd816672", "updated_at": 1756983211923162}}, {"source": "195", "target": "189", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "d2ce61fa-8775-5aba-b426-4c2331ceda64", "target_node_id": "c83f8efd-26e2-5d39-b8f0-e1649d2f7a0b", "updated_at": 1756983225570456}}, {"source": "196", "target": "173", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "aad0913c-c04e-5e22-a065-5bc5a7894ff2", "target_node_id": "e850203f-866a-5bfd-b687-b73ac0d2b66a", "updated_at": 1756983248653615}}, {"source": "196", "target": "174", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "aad0913c-c04e-5e22-a065-5bc5a7894ff2", "target_node_id": "6218dbab-eb6a-5759-a864-b3419755ffe0", "updated_at": 1756983248653615}}, {"source": "196", "target": "176", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "contains", "source_node_id": "aad0913c-c04e-5e22-a065-5bc5a7894ff2", "target_node_id": "9bc8fab8-5fa5-5875-9008-50d53c2d73a2", "updated_at": 1756983248653615}}, {"source": "198", "target": "196", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "c322f484-a018-5d9b-8168-4e7b71776afb", "target_node_id": "aad0913c-c04e-5e22-a065-5bc5a7894ff2", "updated_at": 1756983262014565}}];
+            var nodes = [{"chunk_index": 0, "chunk_size": 34, "cut_type": "sentence_end", "id": "0", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is a subset of AI that focuses on algorithms that can learn from data.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "0"}, {"external_metadata": "{}", "id": "1", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_f410ffdeb8789434bd07ad0062e1d647", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_f410ffdeb8789434bd07ad0062e1d647.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "Field that includes deep learning.", "id": "2", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machine learning", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "concept", "id": "3", "metadata": "{\"index_fields\": [\"name\"]}", "name": "concept", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "Artificial intelligence.", "id": "4", "metadata": "{\"index_fields\": [\"name\"]}", "name": "ai", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Algorithms capable of improving performance by learning from data.", "id": "5", "metadata": "{\"index_fields\": [\"name\"]}", "name": "algorithms that can learn from data", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Information used as input for learning algorithms.", "id": "6", "metadata": "{\"index_fields\": [\"name\"]}", "name": "data", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"chunk_index": 0, "chunk_size": 30, "cut_type": "sentence_end", "id": "7", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Artificial intelligence is a branch of computer science that aims tocreate intelligent machines.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "7"}, {"external_metadata": "{}", "id": "8", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_eb6c3b3111581d625c8b266425803d3d", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_eb6c3b3111581d625c8b266425803d3d.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "A branch of computer science that aims to create intelligent machines.", "id": "9", "metadata": "{\"index_fields\": [\"name\"]}", "name": "artificial intelligence", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "field", "id": "10", "metadata": "{\"index_fields\": [\"name\"]}", "name": "field", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "The academic discipline of which artificial intelligence is a branch.", "id": "11", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computer science", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Machines exhibiting intelligent behavior; the goal targeted by artificial intelligence.", "id": "12", "metadata": "{\"index_fields\": [\"name\"]}", "name": "intelligent machines", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"chunk_index": 0, "chunk_size": 32, "cut_type": "sentence_end", "id": "13", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a subset of machine learning that uses neural networks with many layers.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "13"}, {"external_metadata": "{}", "id": "14", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_6cc7f196cd6a51f4636a43e359aa9396", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_6cc7f196cd6a51f4636a43e359aa9396.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "Subset of machine learning that uses neural networks with many layers.", "id": "15", "metadata": "{\"index_fields\": [\"name\"]}", "name": "deep learning", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Models used by deep learning that consist of layers.", "id": "16", "metadata": "{\"index_fields\": [\"name\"]}", "name": "neural networks", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Multiple layers within neural networks used in deep learning.", "id": "17", "metadata": "{\"index_fields\": [\"name\"]}", "name": "many layers", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"chunk_index": 0, "chunk_size": 25, "cut_type": "sentence_end", "id": "18", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Natural language processing enables computers to understand and process human language.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "18"}, {"external_metadata": "{}", "id": "19", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_d5ffc3e92ccb67a18b3d147cc69dc0d7", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_d5ffc3e92ccb67a18b3d147cc69dc0d7.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "Field that enables computers to understand and process human language", "id": "20", "metadata": "{\"index_fields\": [\"name\"]}", "name": "natural language processing", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Machines that perform computations and run algorithms", "id": "21", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computers", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "device", "id": "22", "metadata": "{\"index_fields\": [\"name\"]}", "name": "device", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "System of communication used by humans", "id": "23", "metadata": "{\"index_fields\": [\"name\"]}", "name": "human language", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "language", "id": "24", "metadata": "{\"index_fields\": [\"name\"]}", "name": "language", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"id": "25", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is an AI branch focused on algorithms that learn from data.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "25"}, {"id": "26", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Artificial intelligence is a subfield of computer science focused on building machines that display intelligent behavior.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "26"}, {"chunk_index": 0, "chunk_size": 27, "cut_type": "sentence_end", "id": "27", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision allows machines to interpret and make decisionsbased on visual information.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "27"}, {"external_metadata": "{}", "id": "28", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_73318cb2b9ade3c9b1201abe6c52ee40", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_73318cb2b9ade3c9b1201abe6c52ee40.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "Field of computer science and artificial intelligence that enables machines to process and analyze visual information.", "id": "29", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computer vision", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Computing systems or devices that can perform tasks and make decisions.", "id": "30", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machines", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Data perceived visually such as images, video frames, or other visual signals.", "id": "31", "metadata": "{\"index_fields\": [\"name\"]}", "name": "visual information", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "information", "id": "32", "metadata": "{\"index_fields\": [\"name\"]}", "name": "information", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "The act of extracting meaning or understanding from visual information.", "id": "33", "metadata": "{\"index_fields\": [\"name\"]}", "name": "interpretation", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "process", "id": "34", "metadata": "{\"index_fields\": [\"name\"]}", "name": "process", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "The process of selecting actions or conclusions based on available information.", "id": "35", "metadata": "{\"index_fields\": [\"name\"]}", "name": "decision making", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"id": "36", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a branch of machine learning that uses multi-layered neural networks.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "36"}, {"id": "37", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Natural language processing lets machines interpret and manipulate human language.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "37"}, {"id": "38", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision enables machines to perceive visual data and make decisions from it.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "38"}];
+            var links = [{"source": "0", "target": "1", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "e7c952fa-dba4-5821-9245-d53a87f3821a", "target_node_id": "ba659e87-4eb5-5b0e-9945-81535aab74fc", "updated_at": 1762526369680850}}, {"source": "2", "target": "4", "relation": "is_subset_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_subset_of", "source_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "target_node_id": "8348bd10-1457-57fe-b983-d0481fafcfc2", "updated_at": 1762526369963451}}, {"source": "7", "target": "8", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "b8e3a937-249a-5a57-8c31-a2b1fd554001", "target_node_id": "5a4872a8-f3c3-5189-8656-f2e054adc720", "updated_at": 1762526369712521}}, {"source": "9", "target": "11", "relation": "is_branch_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_branch_of", "source_node_id": "e850203f-866a-5bfd-b687-b73ac0d2b66a", "target_node_id": "6218dbab-eb6a-5759-a864-b3419755ffe0", "updated_at": 1762526370366263}}, {"source": "13", "target": "14", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "5b77182c-db3b-55e7-a08d-b1884a342762", "target_node_id": "fff6728e-c61a-5c22-9f82-02ac24f1ddf4", "updated_at": 1762526371793383}}, {"source": "15", "target": "2", "relation": "is_subset_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_subset_of", "source_node_id": "0d2c7a60-f91f-5b5c-a797-43baae69fb35", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1762526372202766}}, {"source": "18", "target": "19", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "6aa3bba6-ce1f-5768-a9da-035feede8f34", "target_node_id": "737ee139-aa3b-533f-978b-c096cd41489d", "updated_at": 1762526374440729}}, {"source": "20", "target": "21", "relation": "enables", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "enables", "source_node_id": "bc338a39-64d6-549a-acec-da60846dd90d", "target_node_id": "bebbacfd-d284-52dc-9f8d-5fb58f63bdaf", "updated_at": 1762526374940885}}, {"source": "25", "target": "0", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "efd88e4f-5b2e-54bb-b0db-87beaec93a9e", "target_node_id": "e7c952fa-dba4-5821-9245-d53a87f3821a", "updated_at": 1762526376060421}}, {"source": "26", "target": "7", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "d348946f-f007-565e-ba1d-48364ad23ac7", "target_node_id": "b8e3a937-249a-5a57-8c31-a2b1fd554001", "updated_at": 1762526378693171}}, {"source": "27", "target": "28", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "d7f8ffba-c708-55c4-b50c-1ac7b90fea5d", "target_node_id": "07fae124-d2da-55e7-b662-2161d961a599", "updated_at": 1762526378693032}}, {"source": "29", "target": "30", "relation": "allows", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "allows", "source_node_id": "4892a8ad-991e-58f6-a1a5-eb9c22c16488", "target_node_id": "e1cdb5bc-15a1-5b58-9cd0-23f5eb11a49d", "updated_at": 1762526380826130}}, {"source": "36", "target": "13", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "72e08d18-2ce4-541d-afb6-425ff0ac2b4f", "target_node_id": "5b77182c-db3b-55e7-a08d-b1884a342762", "updated_at": 1762526380828782}}, {"source": "37", "target": "18", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "500cf67f-4c4b-596f-8788-7a52a273ce61", "target_node_id": "6aa3bba6-ce1f-5768-a9da-035feede8f34", "updated_at": 1762526383835658}}, {"source": "38", "target": "27", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "c50f92d9-16ae-5f2a-8e74-797c82eab6ce", "target_node_id": "d7f8ffba-c708-55c4-b50c-1ac7b90fea5d", "updated_at": 1762526387166102}}];
 
             var svg = d3.select("svg"),
                 width = window.innerWidth,
@@ -46,19 +70,141 @@
 
             var container = svg.append("g");
             var tooltip = d3.select("#tooltip");
+            var infoPanel = d3.select('#info-panel');
+
+            function renderInfo(title, entries){
+                function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+                var html = '<h3>' + esc(title) + '</h3>';
+                html += '<div class="kv">';
+                entries.forEach(function(e){
+                    html += '<div><span class="k">' + esc(e.k) + ':</span> <span class="v">' + esc(e.v) + '</span></div>';
+                });
+                html += '</div>';
+                infoPanel.html(html);
+            }
+            function pickDescription(obj){
+                if (!obj) return null;
+                var keys = ['description','summary','text','content'];
+                for (var i=0; i<keys.length; i++){
+                    var v = obj[keys[i]];
+                    if (typeof v === 'string' && v.trim()) return v.trim();
+                }
+                return null;
+            }
+            function truncate(s, n){ if (!s) return s; return s.length > n ? (s.slice(0, n) + '…') : s; }
+            function renderNodeInfo(n){
+                var entries = [];
+                if (n.name) entries.push({k:'Name', v: n.name});
+                if (n.type) entries.push({k:'Type', v: n.type});
+                if (n.id) entries.push({k:'ID', v: n.id});
+                var desc = pickDescription(n) || pickDescription(n.properties);
+                if (desc) entries.push({k:'Description', v: truncate(desc.replace(/\s+/g,' ').trim(), 280)});
+                if (n.properties) {
+                    Object.keys(n.properties).slice(0, 12).forEach(function(key){
+                        var v = n.properties[key];
+                        if (v !== undefined && v !== null && typeof v !== 'object') entries.push({k: key, v: String(v)});
+                    });
+                }
+                renderInfo(n.name || 'Node', entries);
+            }
+            function renderEdgeInfo(e){
+                var entries = [];
+                if (e.relation) entries.push({k:'Relation', v: e.relation});
+                if (e.weight !== undefined && e.weight !== null) entries.push({k:'Weight', v: e.weight});
+                if (e.all_weights && Object.keys(e.all_weights).length){
+                    Object.keys(e.all_weights).slice(0, 8).forEach(function(k){ entries.push({k: 'w.'+k, v: e.all_weights[k]}); });
+                }
+                if (e.relationship_type) entries.push({k:'Type', v: e.relationship_type});
+                var edesc = pickDescription(e.edge_info);
+                if (edesc) entries.push({k:'Description', v: truncate(edesc.replace(/\s+/g,' ').trim(), 280)});
+                renderInfo('Edge', entries);
+            }
+
+            // Basic runtime diagnostics
+            console.log('[Cognee Visualization] nodes:', nodes ? nodes.length : 0, 'links:', links ? links.length : 0);
+            window.addEventListener('error', function(e){
+                try {
+                    tooltip.html('<strong>Error:</strong> ' + e.message)
+                        .style('left', '12px')
+                        .style('top', '12px')
+                        .style('opacity', 1);
+                } catch(_) {}
+            });
+
+            // Normalize node IDs and link endpoints for robustness
+            function resolveId(d){ return (d && (d.id || d.node_id || d.uuid || d.external_id || d.name)) || undefined; }
+            if (Array.isArray(nodes)) {
+                nodes.forEach(function(n){ var id = resolveId(n); if (id !== undefined) n.id = id; });
+            }
+            if (Array.isArray(links)) {
+                links.forEach(function(l){
+                    if (typeof l.source === 'object') l.source = resolveId(l.source);
+                    if (typeof l.target === 'object') l.target = resolveId(l.target);
+                });
+            }
+
+            if (!nodes || nodes.length === 0) {
+                container.append('text')
+                    .attr('x', width / 2)
+                    .attr('y', height / 2)
+                    .attr('fill', '#fff')
+                    .attr('font-size', 14)
+                    .attr('text-anchor', 'middle')
+                    .text('No graph data available');
+            }
+
+            // Visual defs - reusable glow
+            var defs = svg.append("defs");
+            var glow = defs.append("filter").attr("id", "glow")
+                .attr("x", "-30%")
+                .attr("y", "-30%")
+                .attr("width", "160%")
+                .attr("height", "160%");
+            glow.append("feGaussianBlur").attr("stdDeviation", 8).attr("result", "coloredBlur");
+            var feMerge = glow.append("feMerge");
+            feMerge.append("feMergeNode").attr("in", "coloredBlur");
+            feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
+            // Stronger glow for hovered adjacency
+            var glowStrong = defs.append("filter").attr("id", "glow-strong")
+                .attr("x", "-40%")
+                .attr("y", "-40%")
+                .attr("width", "180%")
+                .attr("height", "180%");
+            glowStrong.append("feGaussianBlur").attr("stdDeviation", 14).attr("result", "coloredBlur");
+            var feMerge2 = glowStrong.append("feMerge");
+            feMerge2.append("feMergeNode").attr("in", "coloredBlur");
+            feMerge2.append("feMergeNode").attr("in", "SourceGraphic");
+
+            var currentTransform = d3.zoomIdentity;
+            var densityZoomTimer = null;
+            var isInteracting = false;
+            var labelBaseSize = 10;
+            function getGroupKey(d){ return d && (d.type || d.category || d.group || d.color) || 'default'; }
 
             var simulation = d3.forceSimulation(nodes)
-                .force("link", d3.forceLink(links).id(d => d.id).strength(0.1))
-                .force("charge", d3.forceManyBody().strength(-275))
+                .force("link", d3.forceLink(links).id(function(d){ return d.id; }).distance(100).strength(0.2))
+                .force("charge", d3.forceManyBody().strength(-180))
+                .force("collide", d3.forceCollide().radius(16).iterations(2))
                 .force("center", d3.forceCenter(width / 2, height / 2))
-                .force("x", d3.forceX().strength(0.1).x(width / 2))
-                .force("y", d3.forceY().strength(0.1).y(height / 2));
+                .force("x", d3.forceX().strength(0.06).x(width / 2))
+                .force("y", d3.forceY().strength(0.06).y(height / 2))
+                .alphaDecay(0.06)
+                .velocityDecay(0.6);
+
+            // Density layer (sibling of container to avoid double transforms)
+            var densityLayer = svg.append("g")
+                .attr("class", "density")
+                .style("pointer-events", "none");
+            if (densityLayer.lower) densityLayer.lower();
 
             var link = container.append("g")
                 .attr("class", "links")
                 .selectAll("line")
                 .data(links)
                 .enter().append("line")
+                .style("opacity", 0)
+                .style("pointer-events", "none")
                 .attr("stroke-width", d => {
                     if (d.weight) return Math.max(2, d.weight * 5);
                     if (d.all_weights && Object.keys(d.all_weights).length > 0) {
@@ -74,9 +220,10 @@
                 })
                 .on("mouseover", function(d) {
                     // Create tooltip content for edge
+                    renderEdgeInfo(d);
                     var content = "<strong>Edge Information</strong><br/>";
                     content += "Relationship: " + d.relation + "<br/>";
-                    
+
                     // Show all weights
                     if (d.all_weights && Object.keys(d.all_weights).length > 0) {
                         content += "<strong>Weights:</strong><br/>";
@@ -86,23 +233,23 @@
                     } else if (d.weight !== null && d.weight !== undefined) {
                         content += "Weight: " + d.weight + "<br/>";
                     }
-                    
+
                     if (d.relationship_type) {
                         content += "Type: " + d.relationship_type + "<br/>";
                     }
-                    
+
                     // Add other edge properties
                     if (d.edge_info) {
                         Object.keys(d.edge_info).forEach(function(key) {
-                            if (key !== 'weight' && key !== 'weights' && key !== 'relationship_type' && 
-                                key !== 'source_node_id' && key !== 'target_node_id' && 
-                                key !== 'relationship_name' && key !== 'updated_at' && 
+                            if (key !== 'weight' && key !== 'weights' && key !== 'relationship_type' &&
+                                key !== 'source_node_id' && key !== 'target_node_id' &&
+                                key !== 'relationship_name' && key !== 'updated_at' &&
                                 !key.startsWith('weight_')) {
                                 content += key + ": " + d.edge_info[key] + "<br/>";
                             }
                         });
                     }
-                    
+
                     tooltip.html(content)
                         .style("left", (d3.event.pageX + 10) + "px")
                         .style("top", (d3.event.pageY - 10) + "px")
@@ -118,6 +265,7 @@
                 .data(links)
                 .enter().append("text")
                 .attr("class", "edge-label")
+                .style("opacity", 0)
                 .text(d => {
                     var label = d.relation;
                     if (d.all_weights && Object.keys(d.all_weights).length > 1) {
@@ -138,21 +286,225 @@
                 .data(nodes)
                 .enter().append("g");
 
+            // Color fallback by type when d.color is missing
+            var colorByType = {
+                "Entity": "#5C10F4",
+                "EntityType": "#A550FF",
+                "DocumentChunk": "#0DFF00",
+                "TextSummary": "#5C10F4",
+                "TableRow": "#A550FF",
+                "TableType": "#5C10F4",
+                "ColumnValue": "#757470",
+                "SchemaTable": "#A550FF",
+                "DatabaseSchema": "#5C10F4",
+                "SchemaRelationship": "#323332"
+            };
+
             var node = nodeGroup.append("circle")
                 .attr("r", 13)
-                .attr("fill", d => d.color)
+                .attr("fill", function(d){ return d.color || colorByType[d.type] || "#D3D3D3"; })
+                .style("filter", "url(#glow)")
+                .attr("shape-rendering", "geometricPrecision")
                 .call(d3.drag()
                     .on("start", dragstarted)
-                    .on("drag", dragged)
+                    .on("drag", function(d){ dragged(d); updateDensity(); showAdjacency(d); })
                     .on("end", dragended));
 
-            nodeGroup.append("text")
+            // Show links only for hovered node adjacency
+            function isAdjacent(linkDatum, nodeId) {
+                var sid = linkDatum && linkDatum.source && (linkDatum.source.id || linkDatum.source);
+                var tid = linkDatum && linkDatum.target && (linkDatum.target.id || linkDatum.target);
+                return sid === nodeId || tid === nodeId;
+            }
+
+            function showAdjacency(d) {
+                var nodeId = d && (d.id || d.node_id || d.uuid || d.external_id || d.name);
+                if (!nodeId) return;
+                // Build neighbor set
+                var neighborIds = {};
+                neighborIds[nodeId] = true;
+                for (var i = 0; i < links.length; i++) {
+                    var l = links[i];
+                    var sid = l && l.source && (l.source.id || l.source);
+                    var tid = l && l.target && (l.target.id || l.target);
+                    if (sid === nodeId) neighborIds[tid] = true;
+                    if (tid === nodeId) neighborIds[sid] = true;
+                }
+
+                link
+                    .style("opacity", function(l){ return isAdjacent(l, nodeId) ? 0.95 : 0; })
+                    .style("stroke", function(l){ return isAdjacent(l, nodeId) ? "rgba(255,255,255,0.95)" : null; })
+                    .style("stroke-width", function(l){ return isAdjacent(l, nodeId) ? 2.5 : 1.5; });
+                edgeLabels.style("opacity", function(l){ return isAdjacent(l, nodeId) ? 1 : 0; });
+                densityLayer.style("opacity", 0.35);
+
+                // Highlight neighbor nodes and dim others
+                node
+                    .style("opacity", function(n){ return neighborIds[n.id] ? 1 : 0.25; })
+                    .style("filter", function(n){ return neighborIds[n.id] ? "url(#glow-strong)" : "url(#glow)"; })
+                    .attr("r", function(n){ return neighborIds[n.id] ? 15 : 13; });
+                // Raise highlighted nodes
+                node.filter(function(n){ return neighborIds[n.id]; }).raise();
+                // Neighbor labels brighter
+                nodeGroup.select("text")
+                    .style("opacity", function(n){ return neighborIds[n.id] ? 1 : 0.2; })
+                    .style("font-size", function(n){
+                        var size = neighborIds[n.id] ? Math.min(22, labelBaseSize * 1.25) : labelBaseSize;
+                        return size + "px";
+                    });
+            }
+
+            function clearAdjacency() {
+                link.style("opacity", 0)
+                    .style("stroke", null)
+                    .style("stroke-width", 1.5);
+                edgeLabels.style("opacity", 0);
+                densityLayer.style("opacity", 1);
+                node
+                    .style("opacity", 1)
+                    .style("filter", "url(#glow)")
+                    .attr("r", 13);
+                nodeGroup.select("text")
+                    .style("opacity", 1)
+                    .style("font-size", labelBaseSize + "px");
+            }
+
+            node.on("mouseover", function(d){ showAdjacency(d); })
+                .on("mouseout", function(){ clearAdjacency(); });
+            node.on("mouseover", function(d){ renderNodeInfo(d); tooltip.style('opacity', 0); });
+            // Also bind on the group so labels trigger adjacency too
+            nodeGroup.on("mouseover", function(d){ showAdjacency(d); })
+                .on("mouseout", function(){ clearAdjacency(); });
+
+            // Density always on; no hover gating
+
+            // Add labels sparsely to reduce clutter (every ~50th node), and truncate long text
+            nodeGroup
+                .filter(function(d, i){ return i % 14 === 0; })
+                .append("text")
                 .attr("class", "node-label")
                 .attr("dy", 4)
                 .attr("text-anchor", "middle")
-                .text(d => d.name);
+                .text(function(d){
+                    var s = d && d.name ? String(d.name) : '';
+                    return s.length > 40 ? (s.slice(0, 40) + "…") : s;
+                })
+                .style("font-size", labelBaseSize + "px");
 
-            node.append("title").text(d => JSON.stringify(d));
+            function applyLabelSize() {
+                var k = (currentTransform && currentTransform.k) || 1;
+                // Keep labels readable across zoom levels and hide when too small
+                labelBaseSize = Math.max(7, Math.min(18, 10 / Math.sqrt(k)));
+                nodeGroup.select("text")
+                    .style("font-size", labelBaseSize + "px")
+                    .style("display", (k < 0.35 ? "none" : null));
+            }
+
+
+
+            // Density cloud computation (throttled)
+            var densityTick = 0;
+            var geoPath = d3.geoPath().projection(null);
+            var MAX_POINTS_PER_GROUP = 400;
+            function updateDensity() {
+                try {
+                    if (isInteracting) return; // skip during interaction for smoother UX
+                    if (typeof d3 === 'undefined' || typeof d3.contourDensity !== 'function') {
+                        return; // d3-contour not available; skip gracefully
+                    }
+                    if (!nodes || nodes.length === 0) return;
+                    var usable = nodes.filter(function(d){ return d && typeof d.x === 'number' && isFinite(d.x) && typeof d.y === 'number' && isFinite(d.y); });
+                    if (usable.length < 3) return; // not enough positioned points yet
+
+                    var t = currentTransform || d3.zoomIdentity;
+                    if (t.k && t.k < 0.08) {
+                        // Skip density at extreme zoom-out to avoid numerical instability/perf issues
+                        densityLayer.selectAll('*').remove();
+                        return;
+                    }
+
+                    function hexToRgb(hex){
+                        if (!hex) return {r: 0, g: 200, b: 255};
+                        var c = hex.replace('#','');
+                        if (c.length === 3) c = c.split('').map(function(x){ return x+x; }).join('');
+                        var num = parseInt(c, 16);
+                        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+                    }
+
+                    // Build groups across all nodes
+                    var groups = {};
+                    for (var i = 0; i < usable.length; i++) {
+                        var k = getGroupKey(usable[i]);
+                        if (!groups[k]) groups[k] = [];
+                        groups[k].push(usable[i]);
+                    }
+
+                    densityLayer.selectAll('*').remove();
+
+                    Object.keys(groups).forEach(function(key){
+                        var arr = groups[key];
+                        if (!arr || arr.length < 3) return;
+
+                        // Transform positions into screen space and sample to cap cost
+                        var arrT = [];
+                        var step = Math.max(1, Math.floor(arr.length / MAX_POINTS_PER_GROUP));
+                        for (var j = 0; j < arr.length; j += step) {
+                            var nx = t.applyX(arr[j].x);
+                            var ny = t.applyY(arr[j].y);
+                            if (isFinite(nx) && isFinite(ny)) {
+                                arrT.push({ x: nx, y: ny, type: arr[j].type, color: arr[j].color });
+                            }
+                        }
+                        if (arrT.length < 3) return;
+
+                        // Compute adaptive bandwidth based on group spread
+                        var cx = 0, cy = 0;
+                        for (var k = 0; k < arrT.length; k++){ cx += arrT[k].x; cy += arrT[k].y; }
+                        cx /= arrT.length; cy /= arrT.length;
+                        var sumR = 0;
+                        for (var k2 = 0; k2 < arrT.length; k2++){
+                            var dx = arrT[k2].x - cx, dy = arrT[k2].y - cy;
+                            sumR += Math.sqrt(dx*dx + dy*dy);
+                        }
+                        var avgR = sumR / arrT.length;
+                        var dynamicBandwidth = Math.max(12, Math.min(80, avgR));
+                        var densityBandwidth = dynamicBandwidth / (t.k || 1);
+
+                        var contours = d3.contourDensity()
+                            .x(function(d){ return d.x; })
+                            .y(function(d){ return d.y; })
+                            .size([width, height])
+                            .bandwidth(densityBandwidth)
+                            .thresholds(8)
+                            (arrT);
+
+                        if (!contours || contours.length === 0) return;
+                        var maxVal = d3.max(contours, function(d){ return d.value; }) || 1;
+
+                        // Use the first node color in the group or fallback neon palette
+                        var baseColor = (arr.find(function(d){ return d && d.color; }) || {}).color || '#00c8ff';
+                        var rgb = hexToRgb(baseColor);
+
+                        var g = densityLayer.append('g').attr('data-group', key);
+                        g.selectAll('path')
+                            .data(contours)
+                            .enter()
+                            .append('path')
+                            .attr('d', geoPath)
+                            .attr('fill', 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')')
+                            .attr('stroke', 'none')
+                            .style('opacity', function(d){
+                                var v = maxVal ? (d.value / maxVal) : 0;
+                                var alpha = Math.pow(Math.max(0, Math.min(1, v)), 1.6); // accentuate clusters
+                                return 0.65 * alpha; // up to 0.65 opacity at peak density
+                            })
+                            .style('filter', 'blur(2px)');
+                    });
+                } catch (e) {
+                    // Reduce impact of any runtime errors during zoom
+                    console.warn('Density update failed:', e);
+                }
+            }
 
             simulation.on("tick", function() {
                 link.attr("x1", d => d.source.x)
@@ -172,16 +524,29 @@
                     .attr("y", d => d.y)
                     .attr("dy", 4)
                     .attr("text-anchor", "middle");
+
+                densityTick += 1;
+                if (densityTick % 24 === 0) updateDensity();
             });
 
-            svg.call(d3.zoom().on("zoom", function() {
-                container.attr("transform", d3.event.transform);
-            }));
+            var zoomBehavior = d3.zoom()
+                .on("start", function(){ isInteracting = true; densityLayer.style("opacity", 0.2); })
+                .on("zoom", function(){
+                    currentTransform = d3.event.transform;
+                    container.attr("transform", currentTransform);
+                })
+                .on("end", function(){
+                    if (densityZoomTimer) clearTimeout(densityZoomTimer);
+                    densityZoomTimer = setTimeout(function(){ isInteracting = false; densityLayer.style("opacity", 1); updateDensity(); }, 140);
+                });
+            svg.call(zoomBehavior);
 
             function dragstarted(d) {
                 if (!d3.event.active) simulation.alphaTarget(0.3).restart();
                 d.fx = d.x;
                 d.fy = d.y;
+                isInteracting = true;
+                densityLayer.style("opacity", 0.2);
             }
 
             function dragged(d) {
@@ -193,6 +558,8 @@
                 if (!d3.event.active) simulation.alphaTarget(0);
                 d.fx = null;
                 d.fy = null;
+                if (densityZoomTimer) clearTimeout(densityZoomTimer);
+                densityZoomTimer = setTimeout(function(){ isInteracting = false; densityLayer.style("opacity", 1); updateDensity(); }, 140);
             }
 
             window.addEventListener("resize", function() {
@@ -201,7 +568,13 @@
                 svg.attr("width", width).attr("height", height);
                 simulation.force("center", d3.forceCenter(width / 2, height / 2));
                 simulation.alpha(1).restart();
+                updateDensity();
+                applyLabelSize();
             });
+
+            // Initial density draw
+            updateDensity();
+            applyLabelSize();
         </script>
 
         <svg style="position: fixed; bottom: 10px; right: 10px; width: 150px; height: auto; z-index: 9999;" viewBox="0 0 158 44" fill="none" xmlns="http://www.w3.org/2000/svg">

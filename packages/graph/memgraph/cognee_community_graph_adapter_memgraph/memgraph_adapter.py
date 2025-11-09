@@ -1120,3 +1120,8 @@ class MemgraphAdapter(GraphDBInterface):
                 "avg_shortest_path_length": -1,
                 "avg_clustering": -1,
             }
+
+    async def is_empty(self) -> bool:
+        query = "MATCH (n) RETURN true LIMIT 1;"
+        result = await self.query(query)
+        return len(result) == 0

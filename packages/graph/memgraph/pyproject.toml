@@ -6,7 +6,7 @@ authors = [
     {name = "Cognee Team", email = "hello@cognee.ai"},
 ]
 dependencies = [
-    "cognee[neo4j]>=0.2.4",
+    "cognee[neo4j]>=0.3.9",
 ]
 readme = "README.md"
 requires-python = ">=3.10,<=3.13"
