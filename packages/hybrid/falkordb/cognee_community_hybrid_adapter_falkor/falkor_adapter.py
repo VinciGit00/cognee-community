@@ -96,6 +96,7 @@ class FalkorDBAdapter:
         embedding_engine: EmbeddingEngine | None = None,
         url: str | None = None,
         api_key: str | None = None,
+        database_name: str | None = "cognee_graph",
     ):
         self.driver = FalkorDB(
             host=url if url else graph_database_url,
@@ -104,7 +105,7 @@ class FalkorDBAdapter:
             password=graph_database_password,
         )
         self.embedding_engine = get_embedding_engine() if not embedding_engine else embedding_engine
-        self.graph_name = "cognee_graph"
+        self.graph_name = database_name
         self.api_key = api_key
 
     # TODO: This should return a list of results, not a single result
@@ -329,9 +330,9 @@ class FalkorDBAdapter:
             f"""
             MERGE (source {{id:'{edge[0]}'}})
             MERGE (target {{id: '{edge[1]}'}})
-            MERGE (source)-[edge:{sanitized_relationship} {properties}]->(target)
-            ON MATCH SET edge.updated_at = timestamp()
-            ON CREATE SET edge.updated_at = timestamp()
+            MERGE (source)-[edge:{sanitized_relationship}]->(target)
+            ON MATCH SET edge += {properties}, edge.updated_at = timestamp()
+            ON CREATE SET edge += {properties}, edge.updated_at = timestamp()
         """
         ).strip()
 
@@ -1317,6 +1318,11 @@ class FalkorDBAdapter:
         Prune the graph by deleting the entire graph structure.
         """
         await self.delete_graph()
+
+    async def is_empty(self) -> bool:
+        query = "MATCH (n) RETURN true LIMIT 1;"
+        result = self.query(query)
+        return result.result_set[0][0] == 0
 
 
 if TYPE_CHECKING:

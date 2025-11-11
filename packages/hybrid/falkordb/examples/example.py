@@ -54,7 +54,7 @@ async def main():
     search_results = await search(query_type=SearchType.GRAPH_COMPLETION, query_text=query_text)
 
     for result_text in search_results:
-        print("\nSearch result: \n" + result_text)
+        print(result_text)
 
 
 if __name__ == "__main__":
