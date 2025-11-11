@@ -330,9 +330,9 @@ class FalkorDBAdapter:
             f"""
             MERGE (source {{id:'{edge[0]}'}})
             MERGE (target {{id: '{edge[1]}'}})
-            MERGE (source)-[edge:{sanitized_relationship} {properties}]->(target)
-            ON MATCH SET edge.updated_at = timestamp()
-            ON CREATE SET edge.updated_at = timestamp()
+            MERGE (source)-[edge:{sanitized_relationship}]->(target)
+            ON MATCH SET edge += {properties}, edge.updated_at = timestamp()
+            ON CREATE SET edge += {properties}, edge.updated_at = timestamp()
         """
         ).strip()
 
