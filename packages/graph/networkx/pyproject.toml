@@ -6,6 +6,5 @@ readme = "README.md"
 requires-python =  ">=3.11,<=3.13"
 dependencies = [
     "networkx>=3.4.2,<4",
-    "cognee>=0.3.9",
-    "starlette>=0.48.0"
+    "cognee>=0.4.0",
 ]
