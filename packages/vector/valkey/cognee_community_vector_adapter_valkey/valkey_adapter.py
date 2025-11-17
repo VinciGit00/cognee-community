@@ -5,6 +5,7 @@ import json
 import struct
 from typing import Any
 from uuid import UUID
+from urllib.parse import urlparse
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
 from cognee.infrastructure.databases.vector import VectorDBInterface
@@ -66,6 +67,12 @@ class CollectionNotFoundError(Exception):
     pass
 
 
+def parse_host_port(url: str) -> tuple[str, int]:
+    parsed = urlparse(url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 6379
+    return host, port
+
 def _to_float32_bytes(vec) -> bytes:
     return struct.pack(f"{len(vec)}f", *map(float, vec))
 
@@ -81,7 +88,7 @@ def serialize_for_json(obj: Any) -> Any:
         return obj
 
 
-def _b2s(self, x: Any) -> Any:
+def _b2s(x: Any) -> Any:
     if isinstance(x, (bytes, bytearray)):
         try:
             return x.decode("utf-8")
@@ -91,16 +98,10 @@ def _b2s(self, x: Any) -> Any:
 
 
 def build_scored_results_from_ft(
-        self,
         raw: Any,
         *,
         use_key_suffix_when_missing_id: bool = True,
 ) -> list["ScoredResult"]:
-    """
-    Convert FT.SEARCH raw result of the form:
-    [ total:int, { key: { b'id': ..., b'payload_data': ..., b'score': ... }, ... } ]
-    into List[ScoredResult].
-    """
     if not isinstance(raw, (list, tuple)) or len(raw) < 2 or not isinstance(raw[1], dict):
         return []
 
@@ -108,20 +109,25 @@ def build_scored_results_from_ft(
     scored: list[ScoredResult] = []
 
     for key_bytes, fields in mapping.items():
-        key_str = self._b2s(key_bytes)
+        key_str = _b2s(key_bytes)
 
         # Extract id
         raw_id = fields.get(b"id") if b"id" in fields else fields.get("id")
         if raw_id is not None:
-            result_id = self._b2s(raw_id)
+            result_id = _b2s(raw_id)
         else:
             result_id = key_str
+
+        # Extrat score
+        score = fields.get(b"__vector_score") if b"__vector_score" in fields else fields.get("__vector_score")
+        if score is not None:
+            score = float(score)
 
         # Extract and parse payload_data
         payload_raw = fields.get(b"payload_data") if b"payload_data" in fields else fields.get("payload_data")
         payload: dict[str, Any] = {}
         if payload_raw is not None:
-            payload_str = self._b2s(payload_raw)
+            payload_str = _b2s(payload_raw)
             if isinstance(payload_str, str):
                 try:
                     obj = json.loads(payload_str)
@@ -134,12 +140,11 @@ def build_scored_results_from_ft(
                     # Keep the raw string if malformed
                     payload = {"_payload_raw": payload_str}
 
-        # Build ScoredResult (adjust to your class signature)
         scored.append(
             ScoredResult(
-                id=result_id,  # or parse_id(result_id) if you have that
+                id=result_id,
                 payload=payload,
-                score=0.0,
+                score=score,
             )
         )
 
@@ -151,9 +156,7 @@ def build_scored_results_from_ft(
 class ValkeyAdapter(VectorDBInterface):
     def __init__(
             self,
-            # Connection
-            host: str | None = "localhost",
-            port: int | None = 6379,
+            url: str | None,
             api_key: str | None = None,
             embedding_engine: EmbeddingEngine | None = None
     ) -> None:
@@ -162,8 +165,7 @@ class ValkeyAdapter(VectorDBInterface):
                 "Embedding engine is required. Provide 'embedding_engine' to the Valkey adapter."
             )
 
-        self._host = host
-        self._port = port
+        self._host, self._port = parse_host_port(url)
         self._api_key = api_key
         self._embedding_engine = embedding_engine
         self._client: GlideClient | None = None
@@ -172,7 +174,7 @@ class ValkeyAdapter(VectorDBInterface):
 
     # -------------------- lifecycle --------------------
 
-    async def _connect(self) -> GlideClient:
+    async def get_connection(self) -> GlideClient:
         if self._connected and self._client is not None:
             return self._client
 
@@ -214,7 +216,7 @@ class ValkeyAdapter(VectorDBInterface):
     # -------------------- VectorDBInterface methods --------------------
 
     async def has_collection(self, collection_name: str) -> bool:
-        client = await self._connect()
+        client = await self.get_connection()
         try:
             await ft.info(client, self._index_name(collection_name))
             return True
@@ -261,7 +263,7 @@ class ValkeyAdapter(VectorDBInterface):
             collection_name: str,
             data_points: list[DataPoint],
     ) -> None:
-        client = await self._connect()
+        client = await self.get_connection()
         assert self._client is not None
 
         try:
@@ -269,9 +271,8 @@ class ValkeyAdapter(VectorDBInterface):
                 raise CollectionNotFoundError(f"Collection {collection_name} not found!")
 
             # Embed the data points
-            data_vectors = await self.embed_data(
-                [DataPoint.get_embeddable_data(data_point) for data_point in data_points]
-            )
+            data_to_embed = [DataPoint.get_embeddable_data(data_point) for data_point in data_points]
+            data_vectors = await self.embed_data(data_to_embed)
 
             documents = []
             for data_point, embedding in zip(data_points, data_vectors):
@@ -285,7 +286,7 @@ class ValkeyAdapter(VectorDBInterface):
 
                 documents.append(glide_json.set(
                     client,
-                    self._key(collection_name, data_point.id),
+                    self._key(collection_name, str(data_point.id)),
                     "$",
                     json.dumps(doc_data),
                 ))
@@ -306,7 +307,7 @@ class ValkeyAdapter(VectorDBInterface):
             collection_name: str,
             data_point_ids: list[str],
     ) -> list[dict[str, Any]]:
-        client = await self._connect()
+        client = await self.get_connection()
         assert self._client is not None
 
         try:
@@ -314,13 +315,9 @@ class ValkeyAdapter(VectorDBInterface):
             for data_id in data_point_ids:
                 key = self._key(collection_name, data_id)
                 raw_doc = await glide_json.get(client, key, "$")
-                logger.error(f"ByIdGot: {raw_doc}")
                 if raw_doc:
                     doc = json.loads(raw_doc)
-                    logger.error(f"ByIdGotParsed: {doc}")
-                    # Parse the stored payload JSON
                     payload_str = doc[0]["payload_data"]
-                    logger.error(f"ByIdGotPayload: {payload_str}")
                     try:
                         payload = json.loads(payload_str)
                         results.append(payload)
@@ -342,7 +339,7 @@ class ValkeyAdapter(VectorDBInterface):
             limit: int | None = 15,
             with_vector: bool = False,
     ) -> list[ScoredResult]:
-        client = await self._connect()
+        client = await self.get_connection()
         assert self._client is not None
 
         if query_text is None and query_vector is None:
@@ -372,7 +369,8 @@ class ValkeyAdapter(VectorDBInterface):
             # Set return fields
             return_fields = [
                 ReturnField("$.id", alias="id"),
-                ReturnField("$.payload_data", alias="payload_data")
+                ReturnField("$.payload_data", alias="payload_data"),
+                ReturnField("__vector_score", alias="score")
             ]
             if with_vector:
                 return_fields.append(ReturnField("$.vector", alias="vector"))
@@ -392,7 +390,7 @@ class ValkeyAdapter(VectorDBInterface):
                 options=query_options
             )
 
-            scored_results = self.build_scored_results_from_ft(raw_results)
+            scored_results = build_scored_results_from_ft(raw_results)
             return scored_results
 
         except Exception as e:
@@ -431,7 +429,7 @@ class ValkeyAdapter(VectorDBInterface):
             collection_name: str,
             data_point_ids: list[str],
     ) -> dict[str, int]:
-        client = await self._connect()
+        client = await self.get_connection()
         assert self._client is not None
 
         ids = [self._key(collection_name, id) for id in data_point_ids]
@@ -445,7 +443,7 @@ class ValkeyAdapter(VectorDBInterface):
             raise e
 
     async def prune(self):
-        client = await self._connect()
+        client = await self.get_connection()
         assert self._client is not None
         try:
             all_indexes = await ft.list(client)
