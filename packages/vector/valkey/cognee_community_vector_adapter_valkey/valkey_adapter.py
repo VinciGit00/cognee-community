@@ -50,6 +50,11 @@ class ValkeyAdapter(VectorDBInterface):
     full-text and vector indexing capabilities.
     """
 
+    name = "Valkey"
+    url: str | None
+    api_key: str | None = None
+    embedding_engine: EmbeddingEngine | None = None
+
     def __init__(
             self,
             url: str | None,
@@ -61,7 +66,7 @@ class ValkeyAdapter(VectorDBInterface):
         Args:
             url (str): Connection string for your Valkey instance like valkey://localhost:6379.
             embedding_engine: Engine for generating embeddings.
-            api_key: Optional API key. Ignored for Redis.
+            api_key: Optional API key. Ignored for Valkey.
 
         Raises:
             ValkeyVectorEngineInitializationError: If required parameters are missing.
@@ -72,9 +77,9 @@ class ValkeyAdapter(VectorDBInterface):
                 "Embedding engine is required. Provide 'embedding_engine' to the Valkey adapter."
             )
 
+        self.url = url
         self._host, self._port = _parse_host_port(url)
-        self._api_key = api_key
-        self._embedding_engine = embedding_engine
+        self.embedding_engine = embedding_engine
         self._client: GlideClient | None = None
         self._connected = False
         self.VECTOR_DB_LOCK = asyncio.Lock()
@@ -145,7 +150,7 @@ class ValkeyAdapter(VectorDBInterface):
         return f"{self._key_prefix(collection)}{pid}"
 
     def _ensure_dims(self) -> int:
-        dims = self._embedding_engine.get_dimensions()
+        dims = self.embedding_engine.get_dimensions()
         return int(dims)
 
     async def embed_data(self, data: list[str]) -> list[list[float]]:
@@ -160,7 +165,7 @@ class ValkeyAdapter(VectorDBInterface):
         Raises:
             Exception: If embedding generation fails.
         """
-        return await self._embedding_engine.embed_text(data)
+        return await self.embedding_engine.embed_text(data)
 
     # -------------------- VectorDBInterface methods --------------------
 
@@ -206,7 +211,7 @@ class ValkeyAdapter(VectorDBInterface):
                         name="vector",
                         algorithm=VectorAlgorithm.HNSW,
                         attributes=VectorFieldAttributesHnsw(
-                            dimensions=self._embedding_engine.get_vector_size(),
+                            dimensions=self.embedding_engine.get_vector_size(),
                             distance_metric=DistanceMetricType.COSINE,
                             type=VectorType.FLOAT32
                         )

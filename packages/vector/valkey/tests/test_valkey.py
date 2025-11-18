@@ -19,7 +19,7 @@ from cognee import config
 from cognee_community_vector_adapter_valkey.exceptions import ValkeyVectorEngineInitializationError, \
     CollectionNotFoundError
 
-from cognee_community_vector_adapter_valkey import register
+from cognee_community_vector_adapter_valkey import register # noqa: F401
 
 
 class MyChunk(DataPoint):
