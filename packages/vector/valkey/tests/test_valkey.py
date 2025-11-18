@@ -1,10 +1,11 @@
 import uuid
 
 from dotenv import load_dotenv
+from requests import session
 
-load_dotenv()  # loads .env from current directory
+load_dotenv()
 
-from glide import ft
+from glide import ft, GlideClient
 from glide_shared.constants import OK
 
 from cognee_community_vector_adapter_valkey.valkey_adapter import ValkeyAdapter, MissingQueryParameterError
@@ -15,7 +16,11 @@ import os
 import pytest
 from cognee import config
 
+from cognee_community_vector_adapter_valkey.exceptions import ValkeyVectorEngineInitializationError, \
+    CollectionNotFoundError
+
 from cognee_community_vector_adapter_valkey import register
+
 
 class MyChunk(DataPoint):
     text: str
@@ -24,18 +29,19 @@ class MyChunk(DataPoint):
         "index_fields": ["text"],
     }
 
-@pytest.fixture(autouse=True)
-def setup_cognee_config(tmp_path):
-    # Use a temporary directory for system and data roots
-    system_path = tmp_path / ".cognee-system"
-    data_path = tmp_path / ".cognee-data"
+
+@pytest.fixture(scope="session", autouse=True)
+async def valkey_client_and_engine_config(tmp_path_factory):
+    # Create temporary directories for system and data roots
+    base_tmp = tmp_path_factory.mktemp("cognee")
+    system_path = base_tmp / ".cognee-system"
+    data_path = base_tmp / ".cognee-data"
     system_path.mkdir()
     data_path.mkdir()
 
+    # Configure Cognee
     config.system_root_directory(str(system_path))
     config.data_root_directory(str(data_path))
-
-    # Set vector DB config for Valkey
     config.set_vector_db_config(
         {
             "vector_db_provider": "valkey",
@@ -44,9 +50,25 @@ def setup_cognee_config(tmp_path):
         }
     )
 
-async def test_valkey_path():
+
+@pytest.fixture()
+async def valkey_client_and_engine():
     vector_engine = get_vector_engine()
     client = await vector_engine.get_connection()
+
+    yield client, vector_engine
+
+    # Drop all indexes before each test
+    all_indexes = await ft.list(client)
+    for index in all_indexes:
+        await ft.dropindex(client, index)
+    await vector_engine.close()
+
+
+async def test_happy_path(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+    # vector_engine = get_vector_engine()
+    # client = await vector_engine.get_connection()
     collection = "my_collection-" + str(uuid.uuid4())
 
     # Create collection
@@ -78,9 +100,30 @@ async def test_valkey_path():
     assert await ft.dropindex(client, vector_engine._index_name(collection)) == OK
 
 
-async def test_empty_collection_search_returns_no_results():
-    vector_engine: ValkeyAdapter = get_vector_engine()
-    client = await vector_engine.get_connection()
+async def test_create_data_points_collection_not_found(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+
+    with pytest.raises(CollectionNotFoundError):
+        await vector_engine.create_data_points(collection_name="non_existing_collection", data_points=[
+            MyChunk(id=str(uuid.uuid4()), text="Should fail")
+        ])
+
+
+async def test_create_data_points_empty_list(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+    collection = f"empty_insert_{uuid.uuid4()}"
+    await vector_engine.create_collection(collection_name=collection)
+
+    # Insert empty list
+    await vector_engine.create_data_points(collection_name=collection, data_points=[])
+
+    # Verify no data points exist
+    results = await vector_engine.search(collection_name=collection, query_text="anything", limit=10)
+    assert results == []
+
+
+async def test_empty_collection_search_returns_no_results(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
     collection = f"empty_search_{uuid.uuid4()}"
 
     await vector_engine.create_collection(collection_name=collection)
@@ -90,16 +133,15 @@ async def test_empty_collection_search_returns_no_results():
     assert await ft.dropindex(client, vector_engine._index_name(collection)) == OK
 
 
-async def test_search_invalid_collection_returns_no_results():
-    vector_engine = get_vector_engine()
+async def test_search_invalid_collection_returns_no_results(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
 
     results = await vector_engine.search(collection_name="does_not_exist", query_text="Hello", limit=10)
     assert results == []
 
 
-async def test_search_empty_query_text():
-    vector_engine = get_vector_engine()
-    client = await vector_engine.get_connection()
+async def test_search_empty_query_text(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
     collection = f"empty_search_{uuid.uuid4()}"
 
     await vector_engine.create_collection(collection)
@@ -110,9 +152,8 @@ async def test_search_empty_query_text():
     assert await ft.dropindex(client, vector_engine._index_name(collection)) == OK
 
 
-async def test_delete_data_points():
-    vector_engine = get_vector_engine()
-    client = await vector_engine.get_connection()
+async def test_delete_data_points(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
     collection = f"delete_data_points_{uuid.uuid4()}"
 
     id_1 = uuid.uuid4()
@@ -148,9 +189,20 @@ async def test_delete_data_points():
     assert await ft.dropindex(client, vector_engine._index_name(collection)) == OK
 
 
-async def test_retrieve_data_points():
-    vector_engine = get_vector_engine()
-    client = await vector_engine.get_connection()
+async def test_delete_non_existing_ids(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+    collection = f"delete_non_existing_{uuid.uuid4()}"
+    await vector_engine.create_collection(collection_name=collection)
+
+    # Attempt to delete IDs that don't exist
+    result = await vector_engine.delete_data_points(collection_name=collection,
+                                                    data_point_ids=["fake-id-1", "fake-id-2"])
+    assert "deleted" in result
+    assert result["deleted"] == 0
+
+
+async def test_retrieve_data_points(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
     collection = f"delete_data_points_{uuid.uuid4()}"
 
     id_1 = uuid.uuid4()
@@ -177,9 +229,89 @@ async def test_retrieve_data_points():
     assert [r['id'] for r in results] == [str(id_1), str(id_2)]
 
 
-async def test_valkey_connection():
-    vector_engine = get_vector_engine()
-    client = await vector_engine.get_connection()
+async def test_prune_removes_all_collections(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+
+    # Create two collections
+    col1 = f"test_prune_{uuid.uuid4()}"
+    col2 = f"test_prune_{uuid.uuid4()}"
+    await vector_engine.create_collection(collection_name=col1)
+    await vector_engine.create_collection(collection_name=col2)
+
+    # Verify collections exist
+    indexes_before = [idx.decode("utf-8") for idx in await ft.list(client)]
+    assert vector_engine._index_name(col1) in indexes_before
+    assert vector_engine._index_name(col2) in indexes_before
+
+    # Call prune
+    await vector_engine.prune()
+
+    # Verify all collections are removed
+    indexes_after = [idx.decode("utf-8") for idx in await ft.list(client)]
+    assert vector_engine._index_name(col1) not in indexes_after
+    assert vector_engine._index_name(col2) not in indexes_after
+    assert len(indexes_after) == 0 or all(idx.startswith("system") for idx in indexes_after)
+
+
+async def test_prune_raises_on_error(valkey_client_and_engine, monkeypatch):
+    client, vector_engine = valkey_client_and_engine
+
+    async def mock_list_fail(*args, **kwargs):
+        raise Exception("Simulated failure")
+
+    monkeypatch.setattr("glide.ft.list", mock_list_fail)
+
+    with pytest.raises(Exception, match="Simulated failure"):
+        await vector_engine.prune()
+
+
+async def test_batch_search_returns_results(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+    collection = f"batch_search_{uuid.uuid4()}"
+    await vector_engine.create_collection(collection_name=collection)
+
+    # Insert data points
+    id_1 = uuid.uuid4()
+    id_2 = uuid.uuid4()
+    data_points = [
+        MyChunk(id=str(id_1), text="Hello Valkey"),
+        MyChunk(id=str(id_2), text="Ollama embeddings are neat"),
+    ]
+    await vector_engine.create_data_points(collection_name=collection, data_points=data_points)
+
+    # Perform batch search
+    queries = ["Hello", "embeddings"]
+    results = await vector_engine.batch_search(collection_name=collection, query_texts=queries, limit=10,
+                                               score_threshold=0.5)
+
+    # Validate structure
+    assert isinstance(results, list)
+    assert len(results) == len(queries)
+    assert all(isinstance(group, list) for group in results)
+
+    # Validate at least one result per query
+    assert any(r.id == id_1 for r in results[0])
+    assert any(r.id == id_2 for r in results[1])
+
+
+async def test_batch_search_empty_queries(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+    collection = f"batch_search_empty_{uuid.uuid4()}"
+    await vector_engine.create_collection(collection_name=collection)
+
+    results = await vector_engine.batch_search(collection_name=collection, query_texts=[], limit=10)
+    assert results == []
+
+
+async def test_batch_search_non_existing_collection(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
+    results = await vector_engine.batch_search(collection_name="does_not_exist", query_texts=["Hello"], limit=10)
+
+    assert results == []
+
+
+async def test_valkey_connection(valkey_client_and_engine):
+    client, vector_engine = valkey_client_and_engine
 
     assert client is not None
     assert (await client.ping()) in (b"PONG", "PONG")

@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import struct
 from typing import Any
-from uuid import UUID
-from urllib.parse import urlparse
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
 from cognee.infrastructure.databases.vector import VectorDBInterface
@@ -14,33 +11,22 @@ from cognee.infrastructure.databases.vector.embeddings.EmbeddingEngine import (
 )
 from cognee.infrastructure.databases.vector.models.ScoredResult import ScoredResult
 from cognee.infrastructure.engine import DataPoint
-from cognee.infrastructure.engine.utils import parse_id
 from cognee.shared.logging_utils import get_logger
-# ---- Valkey GLIDE (async) ----------------------------------------------------
-# Docs: https://valkey.io/valkey-glide/
 from glide import (
     GlideClient,
     GlideClientConfiguration,
-    GlideClusterClient,
-    GlideClusterClientConfiguration,
     NodeAddress,
-    ft,  # Full-text (Valkey‑Search) helpers
+    ft,
     glide_json,
-    FtSearchOptions,
-    ReturnField,
     BackoffStrategy
 )
 from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     DataType,
     DistanceMetricType,
-    Field,
     FtCreateOptions,
-    NumericField,
     TagField,
-    TextField,
     VectorAlgorithm,
     VectorField,
-    VectorFieldAttributesFlat,
     VectorFieldAttributesHnsw,
     VectorType,
 )
@@ -50,122 +36,43 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import (
 )
 from glide_shared.exceptions import RequestError
 
+from .exceptions import ValkeyVectorEngineInitializationError, CollectionNotFoundError
+from .utils import _parse_host_port, _to_float32_bytes, _serialize_for_json, _build_scored_results_from_ft
+
 logger = get_logger("ValkeyAdapter")
 
 
-# -------------------------- helpers & utilities -------------------------------
-
-class ValkeyVectorEngineInitializationError(Exception):
-    """Exception raised when vector engine initialization fails."""
-
-    pass
-
-
-class CollectionNotFoundError(Exception):
-    """Exception raised when a collection is not found."""
-
-    pass
-
-
-def parse_host_port(url: str) -> tuple[str, int]:
-    parsed = urlparse(url)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 6379
-    return host, port
-
-def _to_float32_bytes(vec) -> bytes:
-    return struct.pack(f"{len(vec)}f", *map(float, vec))
-
-
-def serialize_for_json(obj: Any) -> Any:
-    if isinstance(obj, UUID):
-        return str(obj)
-    elif isinstance(obj, dict):
-        return {k: serialize_for_json(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [serialize_for_json(item) for item in obj]
-    else:
-        return obj
-
-
-def _b2s(x: Any) -> Any:
-    if isinstance(x, (bytes, bytearray)):
-        try:
-            return x.decode("utf-8")
-        except Exception:
-            return str(x)
-    return x
-
-
-def build_scored_results_from_ft(
-        raw: Any,
-        *,
-        use_key_suffix_when_missing_id: bool = True,
-) -> list["ScoredResult"]:
-    if not isinstance(raw, (list, tuple)) or len(raw) < 2 or not isinstance(raw[1], dict):
-        return []
-
-    mapping: dict[Any, dict[Any, Any]] = raw[1]  # the { key -> fields } dict
-    scored: list[ScoredResult] = []
-
-    for key_bytes, fields in mapping.items():
-        key_str = _b2s(key_bytes)
-
-        # Extract id
-        raw_id = fields.get(b"id") if b"id" in fields else fields.get("id")
-        if raw_id is not None:
-            result_id = _b2s(raw_id)
-        else:
-            result_id = key_str
-
-        # Extrat score
-        score = fields.get(b"__vector_score") if b"__vector_score" in fields else fields.get("__vector_score")
-        if score is not None:
-            score = float(score)
-
-        # Extract and parse payload_data
-        payload_raw = fields.get(b"payload_data") if b"payload_data" in fields else fields.get("payload_data")
-        payload: dict[str, Any] = {}
-        if payload_raw is not None:
-            payload_str = _b2s(payload_raw)
-            if isinstance(payload_str, str):
-                try:
-                    obj = json.loads(payload_str)
-                    if isinstance(obj, dict):
-                        payload = obj
-                    else:
-                        # If it's not a dict (e.g., list), wrap it
-                        payload = {"_payload": obj}
-                except json.JSONDecodeError:
-                    # Keep the raw string if malformed
-                    payload = {"_payload_raw": payload_str}
-
-        scored.append(
-            ScoredResult(
-                id=result_id,
-                payload=payload,
-                score=score,
-            )
-        )
-
-    return scored
-
-
-# -------------------------- Valkey Adapter (GLIDE) ----------------------------
-
 class ValkeyAdapter(VectorDBInterface):
+    """Valkey vector database adapter using ValkeyGlide for vector similarity search.
+
+    This adapter provides an implementation of the `VectorDBInterface` for Valkey,
+    enabling vector storage, retrieval, and similarity search using Valkey's
+    full-text and vector indexing capabilities.
+    """
+
     def __init__(
             self,
             url: str | None,
             api_key: str | None = None,
             embedding_engine: EmbeddingEngine | None = None
     ) -> None:
+        """Initialize the Valkey adapter.
+
+        Args:
+            url (str): Connection string for your Valkey instance like valkey://localhost:6379.
+            embedding_engine: Engine for generating embeddings.
+            api_key: Optional API key. Ignored for Redis.
+
+        Raises:
+            ValkeyVectorEngineInitializationError: If required parameters are missing.
+        """
+
         if not embedding_engine:
             raise ValkeyVectorEngineInitializationError(
                 "Embedding engine is required. Provide 'embedding_engine' to the Valkey adapter."
             )
 
-        self._host, self._port = parse_host_port(url)
+        self._host, self._port = _parse_host_port(url)
         self._api_key = api_key
         self._embedding_engine = embedding_engine
         self._client: GlideClient | None = None
@@ -175,6 +82,20 @@ class ValkeyAdapter(VectorDBInterface):
     # -------------------- lifecycle --------------------
 
     async def get_connection(self) -> GlideClient:
+        """Establish and return an asynchronous Glide client connection to the Valkey server.
+
+        If a connection already exists and is marked as active, it will be reused.
+        Otherwise, a new connection is created using the configured host and port.
+
+        Returns:
+            GlideClient: An active Glide client instance for executing Valkey commands.
+
+        Behavior:
+            - Uses a backoff reconnect strategy with 3 retries and exponential delay.
+            - Disables TLS by default (set `use_tls=True` in configuration if needed).
+            - Sets a request timeout of 5000 ms.
+        """
+
         if self._connected and self._client is not None:
             return self._client
 
@@ -190,6 +111,20 @@ class ValkeyAdapter(VectorDBInterface):
         return self._client
 
     async def close(self) -> None:
+        """Close the active Glide client connection to the Valkey server.
+
+        If a client connection exists, attempts to close it gracefully.
+        Any exceptions during closure are suppressed to avoid breaking cleanup logic.
+
+        After closing:
+            - The internal client reference is set to None.
+            - The connection state flag (`_connected`) is reset to False.
+
+        Returns:
+            None
+
+        """
+
         if self._client is not None:
             try:
                 await self._client.close()
@@ -213,9 +148,31 @@ class ValkeyAdapter(VectorDBInterface):
         dims = self._embedding_engine.get_dimensions()
         return int(dims)
 
+    async def embed_data(self, data: list[str]) -> list[list[float]]:
+        """Embed text data using the embedding engine.
+
+        Args:
+            data: List of text strings to embed.
+
+        Returns:
+            List of embedding vectors as lists of floats.
+
+        Raises:
+            Exception: If embedding generation fails.
+        """
+        return await self._embedding_engine.embed_text(data)
+
     # -------------------- VectorDBInterface methods --------------------
 
     async def has_collection(self, collection_name: str) -> bool:
+        """Check if a collection (index) exists.
+
+        Args:
+            collection_name: Name of the collection to check.
+
+        Returns:
+            True if collection exists, False otherwise.
+        """
         client = await self.get_connection()
         try:
             await ft.info(client, self._index_name(collection_name))
@@ -228,6 +185,15 @@ class ValkeyAdapter(VectorDBInterface):
             collection_name: str,
             payload_schema: Any | None = None,
     ) -> None:
+        """Create a new collection (Valkey index) with vector search capabilities.
+
+        Args:
+            collection_name: Name of the collection to create.
+            payload_schema: Schema for payload data (not used).
+
+        Raises:
+            Exception: If collection creation fails.
+        """
         async with self.VECTOR_DB_LOCK:
             try:
                 if await self.has_collection(collection_name):
@@ -263,6 +229,16 @@ class ValkeyAdapter(VectorDBInterface):
             collection_name: str,
             data_points: list[DataPoint],
     ) -> None:
+        """Create data points in the collection.
+
+        Args:
+            collection_name: Name of the target collection.
+            data_points: List of DataPoint objects to insert.
+
+        Raises:
+            CollectionNotFoundError: If the collection doesn't exist.
+            Exception: If data point creation fails.
+        """
         client = await self.get_connection()
         assert self._client is not None
 
@@ -276,7 +252,7 @@ class ValkeyAdapter(VectorDBInterface):
 
             documents = []
             for data_point, embedding in zip(data_points, data_vectors):
-                payload = serialize_for_json(data_point.model_dump())
+                payload = _serialize_for_json(data_point.model_dump())
 
                 doc_data = {
                     "id": str(data_point.id),
@@ -307,6 +283,15 @@ class ValkeyAdapter(VectorDBInterface):
             collection_name: str,
             data_point_ids: list[str],
     ) -> list[dict[str, Any]]:
+        """Retrieve data points by their IDs.
+
+        Args:
+            collection_name: Name of the collection to retrieve from.
+            data_point_ids: List of data point IDs to retrieve.
+
+        Returns:
+            List of retrieved data point payloads.
+        """
         client = await self.get_connection()
         assert self._client is not None
 
@@ -339,6 +324,22 @@ class ValkeyAdapter(VectorDBInterface):
             limit: int | None = 15,
             with_vector: bool = False,
     ) -> list[ScoredResult]:
+        """Search for similar vectors in the collection.
+
+        Args:
+            collection_name: Name of the collection to search.
+            query_text: Text query to search for (will be embedded).
+            query_vector: Pre-computed query vector.
+            limit: Maximum number of results to return.
+            with_vector: Whether to include vectors in results.
+
+        Returns:
+            List of ScoredResult objects sorted by similarity.
+
+        Raises:
+            MissingQueryParameterError: If neither query_text nor query_vector is provided.
+            Exception: If search execution fails.
+        """
         client = await self.get_connection()
         assert self._client is not None
 
@@ -390,7 +391,7 @@ class ValkeyAdapter(VectorDBInterface):
                 options=query_options
             )
 
-            scored_results = build_scored_results_from_ft(raw_results)
+            scored_results = _build_scored_results_from_ft(raw_results)
             return scored_results
 
         except Exception as e:
@@ -403,7 +404,26 @@ class ValkeyAdapter(VectorDBInterface):
             query_texts: list[str],
             limit: int | None,
             with_vectors: bool = False,
+            score_threshold: float | None = 0.1,
     ) -> list[list[ScoredResult]]:
+        """Perform batch search for multiple queries.
+
+        Args:
+            collection_name: Name of the collection to search.
+            query_texts: List of text queries to search for.
+            limit: Maximum number of results per query.
+            with_vectors: Whether to include vectors in results.
+            score_threshold: threshold for filtering scores.
+
+        Returns:
+            List of search results for each query, filtered by score threshold.
+        """
+        if not await self.has_collection(collection_name):
+            logger.warning(
+                f"Collection '{collection_name}' not found in ValkeyAdapter.search; returning []."
+            )
+            return []
+
         # Embed all queries at once
         vectors = await self.embed_data(query_texts)
 
@@ -421,7 +441,7 @@ class ValkeyAdapter(VectorDBInterface):
         # Filter results by score threshold
         results = await asyncio.gather(*search_tasks)
         return [
-            [result for result in result_group if result.score < 0.1] for result_group in results
+            [result for result in result_group if result.score < score_threshold] for result_group in results
         ]
 
     async def delete_data_points(
@@ -429,6 +449,18 @@ class ValkeyAdapter(VectorDBInterface):
             collection_name: str,
             data_point_ids: list[str],
     ) -> dict[str, int]:
+        """Delete data points by their IDs.
+
+        Args:
+            collection_name: Name of the collection to delete from.
+            data_point_ids: List of data point IDs to delete.
+
+        Returns:
+            Dictionary containing the number of deleted documents.
+
+        Raises:
+            Exception: If deletion fails.
+        """
         client = await self.get_connection()
         assert self._client is not None
 
@@ -443,6 +475,13 @@ class ValkeyAdapter(VectorDBInterface):
             raise e
 
     async def prune(self):
+        """Remove all collections and data from Valkey.
+
+        This method drops all existing indices and clears the internal cache.
+
+        Raises:
+            Exception: If pruning fails.
+        """
         client = await self.get_connection()
         assert self._client is not None
         try:
@@ -454,6 +493,3 @@ class ValkeyAdapter(VectorDBInterface):
         except Exception as e:
             logger.error(f"Error during prune: {str(e)}")
             raise e
-
-    async def embed_data(self, data: list[str]) -> list[list[float]]:
-        return await self._embedding_engine.embed_text(data)
