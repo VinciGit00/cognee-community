@@ -43,7 +43,7 @@ async def valkey_client_and_engine_config(tmp_path_factory):
     config.set_vector_db_config(
         {
             "vector_db_provider": "valkey",
-            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379")
+            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379"),
         }
     )
 
@@ -73,7 +73,7 @@ async def test_happy_path(valkey_client_and_engine):
 
     # Verify collection created
     info = await ft.info(client, vector_engine._index_name(collection))
-    assert (info is not None)
+    assert info is not None
 
     # Insert a couple of points
     id_1 = uuid.uuid4()
@@ -85,11 +85,7 @@ async def test_happy_path(valkey_client_and_engine):
     await vector_engine.create_data_points(collection, data_points)
 
     # Text search (the adapter should embed the query via the same engine)
-    results = await vector_engine.search(
-        collection_name=collection,
-        query_text="Hello",
-        limit=10
-    )
+    results = await vector_engine.search(collection_name=collection, query_text="Hello", limit=10)
 
     assert len(results) == 2
     assert [r.id for r in results] == [id_1, id_2]
@@ -101,9 +97,10 @@ async def test_create_data_points_collection_not_found(valkey_client_and_engine)
     client, vector_engine = valkey_client_and_engine
 
     with pytest.raises(CollectionNotFoundError):
-        await vector_engine.create_data_points(collection_name="non_existing_collection", data_points=[
-            MyChunk(id=str(uuid.uuid4()), text="Should fail")
-        ])
+        await vector_engine.create_data_points(
+            collection_name="non_existing_collection",
+            data_points=[MyChunk(id=str(uuid.uuid4()), text="Should fail")],
+        )
 
 
 async def test_create_data_points_empty_list(valkey_client_and_engine):
@@ -115,7 +112,9 @@ async def test_create_data_points_empty_list(valkey_client_and_engine):
     await vector_engine.create_data_points(collection_name=collection, data_points=[])
 
     # Verify no data points exist
-    results = await vector_engine.search(collection_name=collection, query_text="anything", limit=10)
+    results = await vector_engine.search(
+        collection_name=collection, query_text="anything", limit=10
+    )
     assert results == []
 
 
@@ -124,7 +123,9 @@ async def test_empty_collection_search_returns_no_results(valkey_client_and_engi
     collection = f"empty_search_{uuid.uuid4()}"
 
     await vector_engine.create_collection(collection_name=collection)
-    results = await vector_engine.search(collection_name=collection, query_text="Nonexistent", limit=10)
+    results = await vector_engine.search(
+        collection_name=collection, query_text="Nonexistent", limit=10
+    )
 
     assert results == []
     assert await ft.dropindex(client, vector_engine._index_name(collection)) == OK
@@ -133,7 +134,9 @@ async def test_empty_collection_search_returns_no_results(valkey_client_and_engi
 async def test_search_invalid_collection_returns_no_results(valkey_client_and_engine):
     client, vector_engine = valkey_client_and_engine
 
-    results = await vector_engine.search(collection_name="does_not_exist", query_text="Hello", limit=10)
+    results = await vector_engine.search(
+        collection_name="does_not_exist", query_text="Hello", limit=10
+    )
     assert results == []
 
 
@@ -192,8 +195,9 @@ async def test_delete_non_existing_ids(valkey_client_and_engine):
     await vector_engine.create_collection(collection_name=collection)
 
     # Attempt to delete IDs that don't exist
-    result = await vector_engine.delete_data_points(collection_name=collection,
-                                                    data_point_ids=["fake-id-1", "fake-id-2"])
+    result = await vector_engine.delete_data_points(
+        collection_name=collection, data_point_ids=["fake-id-1", "fake-id-2"]
+    )
     assert "deleted" in result
     assert result["deleted"] == 0
 
@@ -218,12 +222,12 @@ async def test_retrieve_data_points(valkey_client_and_engine):
     results = await vector_engine.retrieve(collection, [id_1])
     print(f"TestLog: retrieve: {results}")
     assert len(results) == 1
-    assert [r['id'] for r in results] == [str(id_1)]
+    assert [r["id"] for r in results] == [str(id_1)]
 
     # Retrieve data points again
     results = await vector_engine.retrieve(collection, [id_1, id_2])
     assert len(results) == 2
-    assert [r['id'] for r in results] == [str(id_1), str(id_2)]
+    assert [r["id"] for r in results] == [str(id_1), str(id_2)]
 
 
 async def test_prune_removes_all_collections(valkey_client_and_engine):
@@ -278,8 +282,9 @@ async def test_batch_search_returns_results(valkey_client_and_engine):
 
     # Perform batch search
     queries = ["Hello", "embeddings"]
-    results = await vector_engine.batch_search(collection_name=collection, query_texts=queries, limit=10,
-                                               score_threshold=0.5)
+    results = await vector_engine.batch_search(
+        collection_name=collection, query_texts=queries, limit=10, score_threshold=0.5
+    )
 
     # Validate structure
     assert isinstance(results, list)
@@ -302,7 +307,9 @@ async def test_batch_search_empty_queries(valkey_client_and_engine):
 
 async def test_batch_search_non_existing_collection(valkey_client_and_engine):
     client, vector_engine = valkey_client_and_engine
-    results = await vector_engine.batch_search(collection_name="does_not_exist", query_texts=["Hello"], limit=10)
+    results = await vector_engine.batch_search(
+        collection_name="does_not_exist", query_texts=["Hello"], limit=10
+    )
 
     assert results == []
 

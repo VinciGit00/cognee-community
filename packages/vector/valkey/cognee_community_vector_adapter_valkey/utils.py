@@ -16,16 +16,16 @@ Internal helper function. Not part of the public API.
 
 def _parse_host_port(url: str) -> tuple[str, int]:
     """
-        Parse a url and extract the host and port.
+    Parse a url and extract the host and port.
 
-        Args:
-            url (str): The connection URL, e.g., "valkey://localhost:6379".
+    Args:
+        url (str): The connection URL, e.g., "valkey://localhost:6379".
 
-        Returns:
-            tuple[str, int]: A tuple containing:
-                - host (str): The hostname from the URL, defaults to "localhost" if missing.
-                - port (int): The port number from the URL, defaults to 6379 if missing.
-        """
+    Returns:
+        tuple[str, int]: A tuple containing:
+            - host (str): The hostname from the URL, defaults to "localhost" if missing.
+            - port (int): The port number from the URL, defaults to 6379 if missing.
+    """
 
     parsed = urlparse(url)
     host = parsed.hostname or "localhost"
@@ -35,20 +35,20 @@ def _parse_host_port(url: str) -> tuple[str, int]:
 
 def _to_float32_bytes(vec) -> bytes:
     """
-        Convert a sequence of numeric values into a bytes representation using 32-bit floats.
+    Convert a sequence of numeric values into a bytes representation using 32-bit floats.
 
-        Args:
-            vec (Iterable[float]): A sequence of numbers (e.g., list, tuple) to be converted.
+    Args:
+        vec (Iterable[float]): A sequence of numbers (e.g., list, tuple) to be converted.
 
-        Returns:
-            bytes: A binary representation of the input values packed as consecutive 32-bit floats.
+    Returns:
+        bytes: A binary representation of the input values packed as consecutive 32-bit floats.
 
-        Notes:
-            - Uses `struct.pack` with the format string `"{len(vec)}f"`, which packs all values as
-              IEEE 754 single-precision floats.
-            - Ensures compatibility with vector databases or embedding engines that require raw
-              float32 byte arrays.
-        """
+    Notes:
+        - Uses `struct.pack` with the format string `"{len(vec)}f"`, which packs all values as
+          IEEE 754 single-precision floats.
+        - Ensures compatibility with vector databases or embedding engines that require raw
+          float32 byte arrays.
+    """
 
     return struct.pack(f"{len(vec)}f", *map(float, vec))
 
@@ -102,9 +102,9 @@ def _b2s(x: Any) -> Any:
 
 
 def _build_scored_results_from_ft(
-        raw: Any,
-        *,
-        use_key_suffix_when_missing_id: bool = True,
+    raw: Any,
+    *,
+    use_key_suffix_when_missing_id: bool = True,
 ) -> list["ScoredResult"]:
     """Build a list of `ScoredResult` objects from raw FT (Full-Text) search response.
 
@@ -141,12 +141,18 @@ def _build_scored_results_from_ft(
             result_id = key_str
 
         # Extrat score
-        score = fields.get(b"__vector_score") if b"__vector_score" in fields else fields.get("__vector_score")
+        score = (
+            fields.get(b"__vector_score")
+            if b"__vector_score" in fields
+            else fields.get("__vector_score")
+        )
         if score is not None:
             score = float(score)
 
         # Extract and parse payload_data
-        payload_raw = fields.get(b"payload_data") if b"payload_data" in fields else fields.get("payload_data")
+        payload_raw = (
+            fields.get(b"payload_data") if b"payload_data" in fields else fields.get("payload_data")
+        )
         payload: dict[str, Any] = {}
         if payload_raw is not None:
             payload_str = _b2s(payload_raw)

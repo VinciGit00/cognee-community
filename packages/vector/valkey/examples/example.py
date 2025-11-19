@@ -11,6 +11,7 @@ from cognee_community_vector_adapter_valkey import register  # noqa: F401
 # Please provide an OpenAI API Key
 # os.environ.setdefault("LLM_API_KEY", "your-api-key")
 
+
 async def main():
     system_path = pathlib.Path(__file__).parent
     config.system_root_directory(path.join(system_path, ".cognee-system"))
@@ -20,7 +21,7 @@ async def main():
     config.set_vector_db_config(
         {
             "vector_db_provider": "valkey",
-            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379")
+            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379"),
         }
     )
 

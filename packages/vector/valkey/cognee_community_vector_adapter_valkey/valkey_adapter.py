@@ -18,7 +18,7 @@ from glide import (
     NodeAddress,
     ft,
     glide_json,
-    BackoffStrategy
+    BackoffStrategy,
 )
 from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     DataType,
@@ -37,7 +37,12 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import (
 from glide_shared.exceptions import RequestError
 
 from .exceptions import ValkeyVectorEngineInitializationError, CollectionNotFoundError
-from .utils import _parse_host_port, _to_float32_bytes, _serialize_for_json, _build_scored_results_from_ft
+from .utils import (
+    _parse_host_port,
+    _to_float32_bytes,
+    _serialize_for_json,
+    _build_scored_results_from_ft,
+)
 
 logger = get_logger("ValkeyAdapter")
 
@@ -56,10 +61,10 @@ class ValkeyAdapter(VectorDBInterface):
     embedding_engine: EmbeddingEngine | None = None
 
     def __init__(
-            self,
-            url: str | None,
-            api_key: str | None = None,
-            embedding_engine: EmbeddingEngine | None = None
+        self,
+        url: str | None,
+        api_key: str | None = None,
+        embedding_engine: EmbeddingEngine | None = None,
     ) -> None:
         """Initialize the Valkey adapter.
 
@@ -108,7 +113,7 @@ class ValkeyAdapter(VectorDBInterface):
             [NodeAddress(self._host, self._port)],
             use_tls=False,
             request_timeout=5000,
-            reconnect_strategy=BackoffStrategy(num_of_retries=3, factor=1000, exponent_base=2)
+            reconnect_strategy=BackoffStrategy(num_of_retries=3, factor=1000, exponent_base=2),
         )
         self._client = await GlideClient.create(cfg)
         self._connected = True
@@ -186,9 +191,9 @@ class ValkeyAdapter(VectorDBInterface):
             return False
 
     async def create_collection(
-            self,
-            collection_name: str,
-            payload_schema: Any | None = None,
+        self,
+        collection_name: str,
+        payload_schema: Any | None = None,
     ) -> None:
         """Create a new collection (Valkey index) with vector search capabilities.
 
@@ -213,9 +218,9 @@ class ValkeyAdapter(VectorDBInterface):
                         attributes=VectorFieldAttributesHnsw(
                             dimensions=self.embedding_engine.get_vector_size(),
                             distance_metric=DistanceMetricType.COSINE,
-                            type=VectorType.FLOAT32
-                        )
-                    )
+                            type=VectorType.FLOAT32,
+                        ),
+                    ),
                 ]
                 prefixes = [self._key_prefix(collection_name)]
                 options = FtCreateOptions(DataType.JSON, prefixes)
@@ -230,9 +235,9 @@ class ValkeyAdapter(VectorDBInterface):
                 raise e
 
     async def create_data_points(
-            self,
-            collection_name: str,
-            data_points: list[DataPoint],
+        self,
+        collection_name: str,
+        data_points: list[DataPoint],
     ) -> None:
         """Create data points in the collection.
 
@@ -252,7 +257,9 @@ class ValkeyAdapter(VectorDBInterface):
                 raise CollectionNotFoundError(f"Collection {collection_name} not found!")
 
             # Embed the data points
-            data_to_embed = [DataPoint.get_embeddable_data(data_point) for data_point in data_points]
+            data_to_embed = [
+                DataPoint.get_embeddable_data(data_point) for data_point in data_points
+            ]
             data_vectors = await self.embed_data(data_to_embed)
 
             documents = []
@@ -265,12 +272,14 @@ class ValkeyAdapter(VectorDBInterface):
                     "payload_data": json.dumps(payload),  # Store as JSON string
                 }
 
-                documents.append(glide_json.set(
-                    client,
-                    self._key(collection_name, str(data_point.id)),
-                    "$",
-                    json.dumps(doc_data),
-                ))
+                documents.append(
+                    glide_json.set(
+                        client,
+                        self._key(collection_name, str(data_point.id)),
+                        "$",
+                        json.dumps(doc_data),
+                    )
+                )
 
             await asyncio.gather(*documents)
 
@@ -284,9 +293,9 @@ class ValkeyAdapter(VectorDBInterface):
             raise e
 
     async def retrieve(
-            self,
-            collection_name: str,
-            data_point_ids: list[str],
+        self,
+        collection_name: str,
+        data_point_ids: list[str],
     ) -> list[dict[str, Any]]:
         """Retrieve data points by their IDs.
 
@@ -322,12 +331,12 @@ class ValkeyAdapter(VectorDBInterface):
             return []
 
     async def search(
-            self,
-            collection_name: str,
-            query_text: str | None = None,
-            query_vector: list[float] | None = None,
-            limit: int | None = 15,
-            with_vector: bool = False,
+        self,
+        collection_name: str,
+        query_text: str | None = None,
+        query_vector: list[float] | None = None,
+        limit: int | None = 15,
+        with_vector: bool = False,
     ) -> list[ScoredResult]:
         """Search for similar vectors in the collection.
 
@@ -376,7 +385,7 @@ class ValkeyAdapter(VectorDBInterface):
             return_fields = [
                 ReturnField("$.id", alias="id"),
                 ReturnField("$.payload_data", alias="payload_data"),
-                ReturnField("__vector_score", alias="score")
+                ReturnField("__vector_score", alias="score"),
             ]
             if with_vector:
                 return_fields.append(ReturnField("$.vector", alias="vector"))
@@ -384,8 +393,7 @@ class ValkeyAdapter(VectorDBInterface):
             vector_param_name = "query_vector"
             query = f"*=>[KNN {limit} @vector ${vector_param_name}]"
             query_options = FtSearchOptions(
-                params={vector_param_name: vec_bytes},
-                return_fields=return_fields
+                params={vector_param_name: vec_bytes}, return_fields=return_fields
             )
 
             # Execute the search
@@ -393,7 +401,7 @@ class ValkeyAdapter(VectorDBInterface):
                 client=client,
                 index_name=self._index_name(collection_name),
                 query=query,
-                options=query_options
+                options=query_options,
             )
 
             scored_results = _build_scored_results_from_ft(raw_results)
@@ -404,12 +412,12 @@ class ValkeyAdapter(VectorDBInterface):
             raise e
 
     async def batch_search(
-            self,
-            collection_name: str,
-            query_texts: list[str],
-            limit: int | None,
-            with_vectors: bool = False,
-            score_threshold: float | None = 0.1,
+        self,
+        collection_name: str,
+        query_texts: list[str],
+        limit: int | None,
+        with_vectors: bool = False,
+        score_threshold: float | None = 0.1,
     ) -> list[list[ScoredResult]]:
         """Perform batch search for multiple queries.
 
@@ -446,13 +454,14 @@ class ValkeyAdapter(VectorDBInterface):
         # Filter results by score threshold
         results = await asyncio.gather(*search_tasks)
         return [
-            [result for result in result_group if result.score < score_threshold] for result_group in results
+            [result for result in result_group if result.score < score_threshold]
+            for result_group in results
         ]
 
     async def delete_data_points(
-            self,
-            collection_name: str,
-            data_point_ids: list[str],
+        self,
+        collection_name: str,
+        data_point_ids: list[str],
     ) -> dict[str, int]:
         """Delete data points by their IDs.
 
