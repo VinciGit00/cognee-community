@@ -13,12 +13,12 @@ from cognee.infrastructure.databases.vector.models.ScoredResult import ScoredRes
 from cognee.infrastructure.engine import DataPoint
 from cognee.shared.logging_utils import get_logger
 from glide import (
+    BackoffStrategy,
     GlideClient,
     GlideClientConfiguration,
     NodeAddress,
     ft,
     glide_json,
-    BackoffStrategy,
 )
 from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     DataType,
@@ -36,12 +36,12 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import (
 )
 from glide_shared.exceptions import RequestError
 
-from .exceptions import ValkeyVectorEngineInitializationError, CollectionNotFoundError
+from .exceptions import CollectionNotFoundError, ValkeyVectorEngineInitializationError
 from .utils import (
-    _parse_host_port,
-    _to_float32_bytes,
-    _serialize_for_json,
     _build_scored_results_from_ft,
+    _parse_host_port,
+    _serialize_for_json,
+    _to_float32_bytes,
 )
 
 logger = get_logger("ValkeyAdapter")
@@ -263,7 +263,7 @@ class ValkeyAdapter(VectorDBInterface):
             data_vectors = await self.embed_data(data_to_embed)
 
             documents = []
-            for data_point, embedding in zip(data_points, data_vectors):
+            for data_point, embedding in zip(data_points, data_vectors, strict=False):
                 payload = _serialize_for_json(data_point.model_dump())
 
                 doc_data = {

@@ -83,7 +83,8 @@ def _(obj: list) -> list:
 
 
 def _b2s(x: Any) -> Any:
-    """Convert bytes or bytearray to a UTF-8 string if possible, otherwise return a string representation.
+    """Convert bytes or bytearray to a UTF-8 string if possible,
+        otherwise return a string representation.
 
     Args:
         x (Any): The input value, which may be bytes, bytearray, or any other type.
@@ -105,7 +106,7 @@ def _build_scored_results_from_ft(
     raw: Any,
     *,
     use_key_suffix_when_missing_id: bool = True,
-) -> list["ScoredResult"]:
+) -> list[ScoredResult]:
     """Build a list of `ScoredResult` objects from raw FT (Full-Text) search response.
 
     Args:
