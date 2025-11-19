@@ -30,7 +30,7 @@ You need a Valkey instance with the Valkey Search module enabled. You can use:
 
 1. **Valkey**:
    ```bash
-   docker run -d --name valkey -p 6379:6379 valkey/valkey:latest
+   docker run -d --name valkey -p 6379:6379 valkey/valkey-bundle
    ```
    
 ## Examples
