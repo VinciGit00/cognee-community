@@ -32,6 +32,16 @@ You need a Valkey instance with the Valkey Search module enabled. You can use:
    ```bash
    docker run -d --name valkey -p 6379:6379 valkey/valkey:latest
    ```
+   
+## Examples
+Checkout the `examples/` folder!
+
+```bash
+uv run examples/example.py
+```
+
+>You will need an OpenAI API key to run the example script.
+
 ## Usage
 
 ```python
