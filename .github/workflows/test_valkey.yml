@@ -1,0 +1,98 @@
+name: Test Valkey Community Adapter
+
+on:
+  workflow_call:
+    secrets:
+      LLM_MODEL:
+        required: true
+      LLM_ENDPOINT:
+        required: true
+      LLM_API_KEY:
+        required: true
+      LLM_API_VERSION:
+        required: true
+      EMBEDDING_MODEL:
+        required: true
+      EMBEDDING_ENDPOINT:
+        required: true
+      EMBEDDING_API_KEY:
+        required: true
+      EMBEDDING_API_VERSION:
+        required: true
+  workflow_dispatch:
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'packages/vector/valkey/**'
+
+concurrency:
+  group: valkey-test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-valkey:
+    name: "Valkey Community Adapter Test"
+    runs-on: ubuntu-22.04
+    services:
+      valkey:
+        image: valkey/valkey-bundle
+        ports:
+          - 6379:6379
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: '3.11.x'
+          package-path: packages/vector/valkey
+
+      - name: Wait for Valkey to be ready
+        run: |
+          echo "Waiting for Valkey to be ready..."
+          for i in {1..30}; do
+            if nc -z localhost 6379; then
+              echo "Valkey is ready!"
+              break
+            fi
+            echo "Valkey not ready yet... (attempt $i/30)"
+            sleep 2
+          done
+
+      - name: Run Valkey Example
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'valkey'
+          VECTOR_DB_URL: 'valkey://localhost:6379'
+        working-directory: ./packages/vector/valkey
+        run: |
+          if [ -f "examples/example.py" ]; then
+            poetry run python examples/example.py
+          else
+            poetry run python example.py
+          fi 
+
+      - name: Run Valkey Tests
+        env:
+          ENV: 'dev'
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+          EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+          VECTOR_DB_PROVIDER: 'valkey'
+          VECTOR_DB_URL: 'valkey://localhost:6379'
+        working-directory: ./packages/vector/valkey
+        run: poetry run python tests/test_valkey.py

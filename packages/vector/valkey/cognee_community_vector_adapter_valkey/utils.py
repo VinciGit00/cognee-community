@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import struct
+from functools import singledispatch
 from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
@@ -52,8 +53,10 @@ def _to_float32_bytes(vec) -> bytes:
     return struct.pack(f"{len(vec)}f", *map(float, vec))
 
 
+@singledispatch
 def _serialize_for_json(obj: Any) -> Any:
     """Convert objects to JSON-serializable format.
+    This id default serialization: return the object as-is.
 
     Args:
         obj: Object to serialize (UUID, dict, list, or any other type).
@@ -61,14 +64,22 @@ def _serialize_for_json(obj: Any) -> Any:
     Returns:
         JSON-serializable representation of the object.
     """
-    if isinstance(obj, UUID):
-        return str(obj)
-    elif isinstance(obj, dict):
-        return {k: _serialize_for_json(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_serialize_for_json(item) for item in obj]
-    else:
-        return obj
+    return obj
+
+
+@_serialize_for_json.register
+def _(obj: UUID) -> str:
+    return str(obj)
+
+
+@_serialize_for_json.register
+def _(obj: dict) -> dict:
+    return {k: _serialize_for_json(v) for k, v in obj.items()}
+
+
+@_serialize_for_json.register
+def _(obj: list) -> list:
+    return [_serialize_for_json(item) for item in obj]
 
 
 def _b2s(x: Any) -> Any:

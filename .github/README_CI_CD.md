@@ -25,6 +25,7 @@ The CI/CD system is designed to automatically test all community database adapte
   - Qdrant  
   - OpenSearch
   - Redis
+  - Valkey
   - Milvus
   - Azure AI Search
 
@@ -41,6 +42,7 @@ Each database adapter has its own dedicated workflow:
 - `test_qdrant.yml` - Tests Qdrant adapter
 - `test_opensearch.yml` - Tests OpenSearch adapter (already exists)
 - `test_redis.yml` - Tests Redis adapter
+- `test_valkey.yml` - Tests Valkey adapter
 - `test_milvus.yml` - Tests Milvus adapter
 - `test_networkx.yml` - Tests NetworkX adapter
 - `test_memgraph.yml` - Tests Memgraph adapter
@@ -48,7 +50,7 @@ Each database adapter has its own dedicated workflow:
 **Individual Workflow Features**:
 - Trigger on changes to specific package paths
 - Run only when relevant code changes
-- Include necessary service containers (Redis, Memgraph, etc.)
+- Include necessary service containers (Redis, Valkey, Memgraph, etc.)
 
 ## Setup Action
 
@@ -91,6 +93,7 @@ All workflows require these secrets for LLM and embedding functionality:
 ### Local Services
 Some databases run as Docker services in the workflows:
 - **Redis**: `redis/redis-stack-server:7.4.0-v1`
+- **Valkey**: `valkey/valkey-bundle`
 - **OpenSearch**: `opensearchproject/opensearch:2.17.1`
 - **Memgraph**: `memgraph/memgraph:2.20.1`
 - **Milvus**: `milvusdb/milvus:v2.4.15`

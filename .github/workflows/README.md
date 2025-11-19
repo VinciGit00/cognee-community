@@ -14,6 +14,7 @@ This directory contains GitHub Actions workflows for testing community database 
 - `test_qdrant.yml` - Qdrant vector database adapter
 - `test_opensearch.yml` - OpenSearch vector database adapter
 - `test_redis.yml` - Redis vector database adapter
+- `test_valkey.yml` - Valkey vector database adapter
 - `test_milvus.yml` - Milvus vector database adapter
 - `test_networkx.yml` - NetworkX graph database adapter
 - `test_memgraph.yml` - Memgraph graph database adapter

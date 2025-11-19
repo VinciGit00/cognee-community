@@ -63,6 +63,12 @@ jobs:
     uses: ./.github/workflows/test_redis.yml
     secrets: inherit
 
+  test-valkey:
+    name: "Valkey Community Adapter Test"
+    if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'valkey') }}
+    uses: ./.github/workflows/test_valkey.yml
+    secrets: inherit
+
   test-milvus:
     name: "Milvus Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'milvus') }}

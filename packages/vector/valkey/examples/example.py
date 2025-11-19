@@ -20,8 +20,7 @@ async def main():
     config.set_vector_db_config(
         {
             "vector_db_provider": "valkey",
-            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379"),
-            "vector_db_key": os.getenv("VECTOR_DB_KEY", "your-api-key"),
+            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379")
         }
     )
 

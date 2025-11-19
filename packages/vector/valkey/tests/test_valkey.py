@@ -1,14 +1,12 @@
 import uuid
 
 from dotenv import load_dotenv
-from requests import session
 
 load_dotenv()
 
-from glide import ft, GlideClient
+from glide import ft
 from glide_shared.constants import OK
 
-from cognee_community_vector_adapter_valkey.valkey_adapter import ValkeyAdapter, MissingQueryParameterError
 from cognee.infrastructure.engine import DataPoint
 from cognee.infrastructure.databases.vector import get_vector_engine
 
@@ -16,10 +14,10 @@ import os
 import pytest
 from cognee import config
 
-from cognee_community_vector_adapter_valkey.exceptions import ValkeyVectorEngineInitializationError, \
-    CollectionNotFoundError
+from cognee_community_vector_adapter_valkey import register  # noqa: F401
 
-from cognee_community_vector_adapter_valkey import register # noqa: F401
+from cognee_community_vector_adapter_valkey.exceptions import CollectionNotFoundError
+from cognee_community_vector_adapter_valkey.valkey_adapter import MissingQueryParameterError
 
 
 class MyChunk(DataPoint):
@@ -45,8 +43,7 @@ async def valkey_client_and_engine_config(tmp_path_factory):
     config.set_vector_db_config(
         {
             "vector_db_provider": "valkey",
-            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379"),
-            "vector_db_key": os.getenv("VECTOR_DB_KEY", "your-api-key"),
+            "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379")
         }
     )
 

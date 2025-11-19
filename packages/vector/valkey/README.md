@@ -56,8 +56,7 @@ async def main():
     # Configure Valkey as vector database
     config.set_vector_db_config({
         "vector_db_provider": "valkey",
-        "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379"),
-        "vector_db_key": os.getenv("VECTOR_DB_KEY", "your-api-key"),  # Optional
+        "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379")
     })
     
     # Optional: Clean previous data
@@ -92,7 +91,6 @@ Configure Valkey as your vector database in cognee:
 
 - `vector_db_provider`: Set to "valkey"
 - `vector_db_url`: Valkey connection URL (e.g., "valkey://localhost:6379")
-- `vector_db_key`: Optional API key parameter (for compatibility, not used by Valkey)
 
 ### Environment Variables
 
@@ -100,7 +98,6 @@ Set the following environment variables or pass them directly in the config:
 
 ```bash
 export VECTOR_DB_URL="valkey://localhost:6379"
-export VECTOR_DB_KEY="optional-key"  # Not used by Valkey
 ```
 
 ### Connection URL Examples
