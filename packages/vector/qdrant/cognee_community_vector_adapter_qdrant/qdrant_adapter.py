@@ -112,7 +112,8 @@ class QDrantAdapter(VectorDBInterface):
         points = [convert_to_qdrant_point(point) for point in data_points]
 
         try:
-            client.upload_points(collection_name=collection_name, points=points)
+            # Use upsert for AsyncQdrantClient (upload_points doesn't exist or is sync)
+            await client.upsert(collection_name=collection_name, points=points)
         except UnexpectedResponse as error:
             if "Collection not found" in str(error):
                 raise CollectionNotFoundError(
