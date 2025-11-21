@@ -1,6 +1,6 @@
 # Cognee Valkey Vector Adapter
 
-A Valkey vector database adapter for Cognee using Valkey Glide, providing high-performance vector storage and retrieval for AI memory applications.
+A Valkey vector database adapter for Cognee using Valkey Glide, providing high-performance vector storage and retrieval for AI memory applications. Compared to the Redis adapter, Valkey offers a fully open-source, community-driven architecture without the licensing restrictions of Redis. Using Valkey Glide ensures efficient async operations and native support for Valkey’s enhancements, providing optimal compatibility and performance when running on Valkey, making it the best choice for teams adopting Valkey as their primary in-memory vector solution.
 
 ## Features
 
