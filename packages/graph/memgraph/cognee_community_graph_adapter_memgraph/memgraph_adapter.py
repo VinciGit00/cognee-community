@@ -456,12 +456,10 @@ class MemgraphAdapter(GraphDBInterface):
                 for src, dst, properties in rel_edges
             ]
             try:
-                results = await self.query(query, {"edges": edges})
-                return results
+                await self.query(query, {"edges": edges})
             except Neo4jError as error:
                 logger.error("Memgraph query error: %s", error, exc_info=True)
                 raise error
-        return None
 
     async def get_edges(self, node_id: str):
         """
