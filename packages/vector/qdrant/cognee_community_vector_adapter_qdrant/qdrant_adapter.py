@@ -199,7 +199,7 @@ class QDrantAdapter(VectorDBInterface):
                         **result.payload,
                         "id": parse_id(str(result.id)),
                     },
-                    score=1 - result.score if hasattr(result, 'score') else 1.0,
+                    score=1 - result.score if hasattr(result, "score") else 1.0,
                 )
                 for result in results
             ]
@@ -255,10 +255,9 @@ class QDrantAdapter(VectorDBInterface):
             # Extract points from each query result and filter by score
             filtered_results = []
             for query_result in query_results:
-                points = query_result.points if hasattr(query_result, 'points') else []
+                points = query_result.points if hasattr(query_result, "points") else []
                 filtered_points = [
-                    result for result in points
-                    if hasattr(result, 'score') and result.score > 0.9
+                    result for result in points if hasattr(result, "score") and result.score > 0.9
                 ]
                 filtered_results.append(filtered_points)
 
