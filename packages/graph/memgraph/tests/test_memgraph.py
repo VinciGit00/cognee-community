@@ -7,7 +7,7 @@ from cognee.infrastructure.databases.graph import get_graph_engine
 from cognee.infrastructure.databases.relational import create_db_and_tables
 from cognee.infrastructure.engine import DataPoint
 
-from cognee_community_graph_adapter_memgraph import register  # noqa: F401
+from cognee_community_graph_adapter_memgraph import register
 
 GRAPH_URL = os.getenv("GRAPH_DATABASE_URL", "bolt://localhost:7687")
 GRAPH_USERNAME = os.getenv("GRAPH_DATABASE_USERNAME", "memgraph")
@@ -80,16 +80,12 @@ async def main():
 
     data_directory_path = str(
         pathlib.Path(
-            os.path.join(
-                pathlib.Path(__file__).parent, ".data_storage/test_memgraph_edges"
-            )
+            os.path.join(pathlib.Path(__file__).parent, ".data_storage/test_memgraph_edges")
         ).resolve()
     )
     cognee_directory_path = str(
         pathlib.Path(
-            os.path.join(
-                pathlib.Path(__file__).parent, ".cognee_system/test_memgraph_edges"
-            )
+            os.path.join(pathlib.Path(__file__).parent, ".cognee_system/test_memgraph_edges")
         ).resolve()
     )
     cognee.config.data_root_directory(data_directory_path)
