@@ -1,3 +1,8 @@
+"""
+Integration tests for Valkey adapter.
+These tests require a running Valkey instance.
+"""
+
 import os
 import uuid
 

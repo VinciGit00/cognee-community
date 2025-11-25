@@ -42,49 +42,6 @@ uv run examples/example.py
 
 >You will need an OpenAI API key to run the example script.
 
-## Usage
-
-```python
-import os
-import asyncio
-from cognee import config, prune, add, cognify, search, SearchType
-
-# Import the register module to enable Valkey support
-from cognee_community_vector_adapter_valkey import register
-
-async def main():
-    # Configure Valkey as vector database
-    config.set_vector_db_config({
-        "vector_db_provider": "valkey",
-        "vector_db_url": os.getenv("VECTOR_DB_URL", "valkey://localhost:6379")
-    })
-    
-    # Optional: Clean previous data
-    await prune.prune_data()
-    await prune.prune_system()
-    
-    # Add your content
-    await add("""
-    Natural language processing (NLP) is an interdisciplinary
-    subfield of computer science and information retrieval.
-    """)
-    
-    # Process with cognee
-    await cognify()
-    
-    # Search
-    search_results = await search(
-        query_type=SearchType.GRAPH_COMPLETION, 
-        query_text="Tell me about NLP"
-    )
-    
-    for result in search_results:
-        print("Search result:", result)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
 ## Configuration
 
 Configure Valkey as your vector database in cognee:

@@ -138,7 +138,8 @@ class ValkeyAdapter(VectorDBInterface):
         if self._client is not None:
             try:
                 await self._client.close()
-            except Exception:
+            except Exception as e:
+                logger.error("Failed to close Valkey client: %e", e)
                 pass
         self._client = None
         self._connected = False
@@ -187,7 +188,8 @@ class ValkeyAdapter(VectorDBInterface):
         try:
             await ft.info(client, self._index_name(collection_name))
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning("Valkey index check failed for '%s': %s", collection_name, e)
             return False
 
     async def create_collection(
@@ -418,6 +420,7 @@ class ValkeyAdapter(VectorDBInterface):
         limit: int | None,
         with_vectors: bool = False,
         score_threshold: float | None = 0.1,
+        max_concurrency: int = 10,
     ) -> list[list[ScoredResult]]:
         """Perform batch search for multiple queries.
 
@@ -427,6 +430,7 @@ class ValkeyAdapter(VectorDBInterface):
             limit: Maximum number of results per query.
             with_vectors: Whether to include vectors in results.
             score_threshold: threshold for filtering scores.
+            max_concurrency: maximum number of concurrent searches.
 
         Returns:
             List of search results for each query, filtered by score threshold.
@@ -441,18 +445,21 @@ class ValkeyAdapter(VectorDBInterface):
         vectors = await self.embed_data(query_texts)
 
         # Execute searches in parallel
-        search_tasks = [
-            self.search(
-                collection_name=collection_name,
-                query_vector=vector,
-                limit=limit,
-                with_vector=with_vectors,
-            )
-            for vector in vectors
-        ]
+        semaphore = asyncio.Semaphore(max_concurrency)
 
-        # Filter results by score threshold
-        results = await asyncio.gather(*search_tasks)
+        async def limited_search(vector):
+            async with semaphore:
+                return await self.search(
+                    collection_name=collection_name,
+                    query_vector=vector,
+                    limit=limit,
+                    with_vector=with_vectors,
+                )
+
+        tasks = [limited_search(vector) for vector in vectors]
+        results = await asyncio.gather(*tasks)
+
+        # Filter results by a score threshold
         return [
             [result for result in result_group if result.score < score_threshold]
             for result_group in results

@@ -82,7 +82,7 @@ def _(obj: list) -> list:
     return [_serialize_for_json(item) for item in obj]
 
 
-def _b2s(x: Any) -> Any:
+def _b2s(x: bytes | bytearray | str) -> str:
     """Convert bytes or bytearray to a UTF-8 string if possible,
         otherwise return a string representation.
 
