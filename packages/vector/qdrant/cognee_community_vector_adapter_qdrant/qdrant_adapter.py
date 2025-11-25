@@ -181,12 +181,8 @@ class QDrantAdapter(VectorDBInterface):
             # query_points is the correct method for AsyncQdrantClient
             query_result = await client.query_points(
                 collection_name=collection_name,
-                query=models.NamedVector(
-                    name="text",
-                    vector=query_vector
-                    if query_vector is not None
-                    else (await self.embed_data([query_text]))[0],
-                ),
+                query=query_vector,
+                using="text",
                 limit=limit,
                 with_vectors=with_vector,
             )
@@ -210,10 +206,7 @@ class QDrantAdapter(VectorDBInterface):
         except Exception as e:
             logger.error(f"Error in Qdrant search: {e}", exc_info=True)
             if client:
-                try:
-                    await client.close()
-                except:
-                    pass
+                await client.close()
             return []
 
     async def batch_search(
@@ -237,7 +230,13 @@ class QDrantAdapter(VectorDBInterface):
         - results: The search results from Qdrant.
         """
 
-        vectors = await self.embed_data(query_texts)
+        client = self.get_qdrant_client()
+        if limit is None:
+            collection_size = await client.count(collection_name=collection_name)
+            limit = collection_size.count
+        if limit == 0:
+            await client.close()
+            return []
 
         client = self.get_qdrant_client()
 
@@ -246,14 +245,9 @@ class QDrantAdapter(VectorDBInterface):
             # query_batch is the correct method for AsyncQdrantClient
             query_results = await client.query_batch(
                 collection_name=collection_name,
-                requests=[
-                    models.Query(
-                        vector=models.NamedVector(name="text", vector=vector),
-                        limit=limit,
-                        with_vectors=with_vectors,
-                    )
-                    for vector in vectors
-                ],
+                query_texts=query_texts,
+                limit=limit,
+                with_vectors=with_vectors,
             )
 
             await client.close()
@@ -271,10 +265,7 @@ class QDrantAdapter(VectorDBInterface):
             return filtered_results
         except Exception as e:
             logger.error(f"Error in Qdrant batch_search: {e}", exc_info=True)
-            try:
-                await client.close()
-            except:
-                pass
+            await client.close()
             return []
 
     async def delete_data_points(self, collection_name: str, data_point_ids: list[str]):
