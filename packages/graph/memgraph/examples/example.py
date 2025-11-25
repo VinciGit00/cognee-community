@@ -42,6 +42,9 @@ async def main():
         "based on visual information.",
     ]
 
+    await cognee.prune.prune_data()
+    await cognee.prune.prune_system(metadata=True)
+
     print("Adding data to Cognee...")
     await cognee.add(sample_data, "ai_knowledge")
 

@@ -523,10 +523,16 @@ version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "cognee", extra = ["neo4j"] },
+    { name = "instructor" },
+    { name = "starlette" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cognee", extras = ["neo4j"], specifier = ">=0.4.0" }]
+requires-dist = [
+    { name = "cognee", extras = ["neo4j"], specifier = ">=0.4.0" },
+    { name = "instructor", specifier = ">=1.11" },
+    { name = "starlette", specifier = ">=0.48.0" },
+]
 
 [[package]]
 name = "colorama"
