@@ -232,7 +232,9 @@ def find_node(nodes: list[Node], condition: callable) -> Node:
 
 
 async def extract_code_parts(
-    tree_root: Node, script_path: str, existing_nodes: list[DataPoint] = None
+    tree_root: Node,
+    script_path: str,
+    existing_nodes: list[DataPoint] = {},  # noqa: B006
 ) -> AsyncGenerator[DataPoint, None]:
     """
     Extract code parts from a given AST node tree asynchronously.

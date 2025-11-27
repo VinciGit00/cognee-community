@@ -1,0 +1,12 @@
+[project]
+name = "cognee-community-custom-package-codify"
+version = "0.0.1"
+description = "Custom cognee package containing everything that is needed to run the codify pipeline. Codify is basically a cognify pipeline designed specifically for code."
+#readme = "README.md"
+requires-python = ">=3.11,<=3.13"
+dependencies = [
+    "cognee>=0.4.0",
+    "cognee-community-pipelines>=0.0.1",
+    "cognee-community-retrievers>=0.0.1",
+    "cognee-community-tasks>=0.0.1"
+]

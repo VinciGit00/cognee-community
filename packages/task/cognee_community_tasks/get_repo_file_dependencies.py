@@ -203,7 +203,8 @@ async def get_repo_file_dependencies(
 
     # Import dependency extractors for each language (Python for now, extend later)
     import aiofiles
-    from cognee.tasks.repo_processor.get_local_dependencies import get_local_script_dependencies
+
+    from .get_local_dependencies import get_local_script_dependencies
     # TODO: Add other language extractors here
 
     for start_range, end_range in chunk_ranges:
