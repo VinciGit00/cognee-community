@@ -1,4 +1,349 @@
+import os
+import json
 
+from cognee.shared.logging_utils import get_logger
+from cognee.infrastructure.files.storage.LocalFileStorage import LocalFileStorage
+
+logger = get_logger()
+
+
+async def cognee_network_visualization(graph_data, destination_file_path: str = None):
+    import networkx
+    import re
+
+    nodes_data, edges_data = graph_data
+
+    G = networkx.DiGraph()
+
+    nodes_list = []
+    color_map = {
+        "Entity": "#5C10F4",  # Default purple, will be yellow if from Reddit
+        "EntityType": "#A550FF",
+        "DocumentChunk": "#808080",  # Default gray, will be overridden based on source
+        "TextSummary": "#5C10F4",
+        "TableRow": "#A550FF",
+        "TableType": "#5C10F4",
+        "ColumnValue": "#757470",
+        "SchemaTable": "#A550FF",
+        "DatabaseSchema": "#5C10F4",
+        "SchemaRelationship": "#323332",
+        "default": "#D8D8D8",
+    }
+    
+    # Debug counters
+    reddit_count = 0
+    research_count = 0
+    other_count = 0
+    document_chunk_count = 0
+    
+    # Track which nodes are from different source types
+    reddit_document_ids = set()
+    research_document_ids = set()  # arXiv/research papers
+    other_document_ids = set()  # RSS feeds, etc.
+
+    def adjust_brightness_by_catchiness(base_color, catchiness_score):
+        """Adjust color brightness based on catchiness score (0-10)"""
+        if catchiness_score is None:
+            return base_color
+        
+        # Normalize catchiness to 0-1 range (assuming max is 10)
+        normalized_catchiness = min(max(catchiness_score / 10.0, 0), 1)
+        
+        # Convert hex to RGB
+        hex_color = base_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        
+        # Increase brightness: interpolate between base color and a brighter version
+        # Higher catchiness = brighter (closer to white, but maintaining hue)
+        brightness_factor = 0.4 + (normalized_catchiness * 0.6)  # Range: 0.4 to 1.0
+        
+        # Apply brightness while maintaining color character
+        r = int(min(255, r + (255 - r) * normalized_catchiness * 0.7))
+        g = int(min(255, g + (255 - g) * normalized_catchiness * 0.7))
+        b = int(min(255, b + (255 - b) * normalized_catchiness * 0.7))
+        
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    for node_id, node_info in nodes_data:
+        node_info = node_info.copy()
+        node_info["id"] = str(node_id)
+        
+        # Get node type
+        node_type = node_info.get("type", "default")
+        
+        # For DocumentChunk nodes, parse catchiness and source from the text field
+        catchiness = None
+        source = None
+        is_reddit = False
+        is_research = False
+        is_other = False
+        
+        if node_type == "DocumentChunk":
+            document_chunk_count += 1
+            text_content = node_info.get("text", "")
+            
+            # Debug: Show first 200 chars of text
+            print(f"\n=== DocumentChunk #{document_chunk_count} Debug ===")
+            print(f"Text preview (first 200 chars): {text_content[:200]}")
+            
+            # Extract catchiness score from text using regex
+            catchiness_match = re.search(r'Catchiness Score:\s*(\d+)/10', text_content)
+            print(f"Catchiness match: {catchiness_match}")
+            if catchiness_match:
+                try:
+                    catchiness = int(catchiness_match.group(1))
+                    node_info["catchiness"] = catchiness
+                    print(f"Catchiness extracted: {catchiness}")
+                except (ValueError, TypeError) as e:
+                    print(f"Error parsing catchiness: {e}")
+                    pass
+            else:
+                print("No catchiness score found in text")
+            
+            # Determine source type from text content - check in priority order
+            print(f"Checking for 'Subreddit: r/' in text: {'Subreddit: r/' in text_content}")
+            print(f"Checking for 'arxiv.org' in text: {'arxiv.org' in text_content.lower()}")
+            print(f"Checking for 'RSS Feed:' in text: {'RSS Feed:' in text_content}")
+            
+            if "Subreddit: r/" in text_content:
+                is_reddit = True
+                reddit_count += 1
+                reddit_document_ids.add(str(node_id))
+                print("🔴 IDENTIFIED AS REDDIT")
+                # Extract subreddit name
+                subreddit_match = re.search(r'Subreddit: (r/\w+)', text_content)
+                if subreddit_match:
+                    source = subreddit_match.group(1)
+                    node_info["source"] = source
+                    print(f"Subreddit: {source}")
+            elif "arxiv.org" in text_content.lower() or "export.arxiv.org" in text_content.lower():
+                is_research = True
+                research_count += 1
+                research_document_ids.add(str(node_id))
+                print("🟢 IDENTIFIED AS RESEARCH/ARXIV")
+                # Extract source details
+                if "RSS Feed:" in text_content:
+                    rss_match = re.search(r'RSS Feed:\s*([^\n]+)', text_content)
+                    if rss_match:
+                        source = rss_match.group(1).strip()
+                        node_info["source"] = "Research: " + source
+                        print(f"Research Feed: {source}")
+            elif "RSS Feed:" in text_content:
+                is_other = True
+                other_count += 1
+                other_document_ids.add(str(node_id))
+                print("🔵 IDENTIFIED AS OTHER/RSS")
+                # Extract RSS feed name
+                rss_match = re.search(r'RSS Feed:\s*([^\n]+)', text_content)
+                if rss_match:
+                    source = rss_match.group(1).strip()
+                    node_info["source"] = source
+                    print(f"RSS Feed: {source}")
+            else:
+                print("⚠️  NO SOURCE IDENTIFIED")
+            
+            print(f"Flags - Reddit: {is_reddit}, Research: {is_research}, Other: {is_other}")
+        else:
+            # For non-DocumentChunk nodes, try to get catchiness and source from properties
+            if "catchiness" in node_info:
+                catchiness = node_info["catchiness"]
+            elif "properties" in node_info and isinstance(node_info["properties"], dict):
+                catchiness = node_info["properties"].get("catchiness")
+            
+            if "source" in node_info:
+                source = node_info["source"]
+            elif "properties" in node_info and isinstance(node_info["properties"], dict):
+                source = node_info["properties"].get("source")
+            
+            if source is not None:
+                node_info["source"] = source
+        
+        # Special handling for DocumentChunk nodes - color by source
+        if node_type == "DocumentChunk":
+            if is_reddit:
+                base_color = "#8B0000"  # Dark red for Reddit
+                print(f"🔴 Base color set to DARK RED (Reddit)")
+            elif is_research:
+                base_color = "#006400"  # Dark green for Research/arXiv
+                print(f"🟢 Base color set to DARK GREEN (Research)")
+            elif is_other:
+                base_color = "#00008B"  # Dark blue for Other/RSS
+                print(f"🔵 Base color set to DARK BLUE (Other/RSS)")
+            else:
+                base_color = "#808080"  # Gray fallback
+                print(f"⚫ Base color set to GRAY (Unidentified)")
+        else:
+            # Get base color from type for non-DocumentChunk nodes
+            base_color = color_map.get(node_type, "#D3D3D3")
+        
+        # Adjust color brightness based on catchiness for DocumentChunk nodes
+        if node_type == "DocumentChunk" and catchiness is not None:
+            try:
+                catchiness_score = float(catchiness)
+                final_color = adjust_brightness_by_catchiness(base_color, catchiness_score)
+                node_info["color"] = final_color
+                print(f"Final color after brightness adjustment (catchiness={catchiness_score}): {final_color}")
+            except (ValueError, TypeError) as e:
+                node_info["color"] = base_color
+                print(f"Error in brightness adjustment: {e}, using base_color: {base_color}")
+        else:
+            # For non-DocumentChunk nodes, use base color without brightness adjustment
+            node_info["color"] = base_color
+            if node_type == "DocumentChunk":
+                print(f"No catchiness found, using base_color: {base_color}")
+            if catchiness is not None:
+                try:
+                    node_info["catchiness"] = float(catchiness)
+                except (ValueError, TypeError):
+                    pass
+        
+        node_info["name"] = node_info.get("name", str(node_id))
+
+        try:
+            del node_info[
+                "updated_at"
+            ]  #:TODO: We should decide what properties to show on the nodes and edges, we dont necessarily need all.
+        except KeyError:
+            pass
+
+        try:
+            del node_info["created_at"]
+        except KeyError:
+            pass
+
+        nodes_list.append(node_info)
+        G.add_node(node_id, **node_info)
+
+    # Print summary
+    print("\n" + "="*60)
+    print("DOCUMENT CHUNK SUMMARY")
+    print("="*60)
+    print(f"Total DocumentChunks: {document_chunk_count}")
+    print(f"🔴 Reddit posts (DARK RED): {reddit_count}")
+    print(f"🟢 Research/arXiv (DARK GREEN): {research_count}")
+    print(f"🔵 Other/RSS (DARK BLUE): {other_count}")
+    print(f"⚠️  Unidentified: {document_chunk_count - reddit_count - research_count - other_count}")
+    print(f"IDs tracked - Reddit: {len(reddit_document_ids)}, Research: {len(research_document_ids)}, Other: {len(other_document_ids)}")
+    print("="*60 + "\n")
+
+    # Build a mapping of entities connected to different source types
+    print("Building entity-to-source mapping from edges...")
+    reddit_connected_nodes = set()
+    research_connected_nodes = set()
+    other_connected_nodes = set()
+    
+    for source, target, relation, edge_info in edges_data:
+        source_id = str(source)
+        target_id = str(target)
+        
+        # Track connections to Reddit documents
+        if source_id in reddit_document_ids:
+            reddit_connected_nodes.add(target_id)
+        if target_id in reddit_document_ids:
+            reddit_connected_nodes.add(source_id)
+            
+        # Track connections to Research documents
+        if source_id in research_document_ids:
+            research_connected_nodes.add(target_id)
+        if target_id in research_document_ids:
+            research_connected_nodes.add(source_id)
+            
+        # Track connections to Other documents
+        if source_id in other_document_ids:
+            other_connected_nodes.add(target_id)
+        if target_id in other_document_ids:
+            other_connected_nodes.add(source_id)
+    
+    print(f"Entities connected to - Reddit: {len(reddit_connected_nodes)}, Research: {len(research_connected_nodes)}, Other: {len(other_connected_nodes)}")
+    
+    # Update Entity node colors based on source connection (priority: Reddit > Research > Other)
+    entity_reddit_count = 0
+    entity_research_count = 0
+    entity_other_count = 0
+    entity_total_count = 0
+    
+    for node_info in nodes_list:
+        if node_info.get("type") == "Entity":
+            entity_total_count += 1
+            node_id = node_info.get("id")
+            
+            # Priority order: Reddit > Research > Other
+            if node_id in reddit_connected_nodes:
+                node_info["color"] = "#FF4500"  # Orange/red for Reddit entities
+                node_info["source_type"] = "reddit"
+                entity_reddit_count += 1
+                if entity_reddit_count <= 3:
+                    print(f"  🟠 Entity '{node_info.get('name', 'Unknown')}' colored orange/red (Reddit)")
+            elif node_id in research_connected_nodes:
+                node_info["color"] = "#00FF00"  # Green for Research entities
+                node_info["source_type"] = "research"
+                entity_research_count += 1
+                if entity_research_count <= 3:
+                    print(f"  🟢 Entity '{node_info.get('name', 'Unknown')}' colored green (Research)")
+            elif node_id in other_connected_nodes:
+                node_info["color"] = "#5C10F4"  # Blue for Other entities (keep original purple/blue)
+                node_info["source_type"] = "other"
+                entity_other_count += 1
+                if entity_other_count <= 3:
+                    print(f"  🔵 Entity '{node_info.get('name', 'Unknown')}' colored blue (Other)")
+    
+    print(f"\n🟠 Reddit entities (ORANGE #FF4500): {entity_reddit_count} / {entity_total_count}")
+    print(f"🟢 Research entities (GREEN #00FF00): {entity_research_count} / {entity_total_count}")
+    print(f"🔵 Other entities (BLUE #5C10F4): {entity_other_count} / {entity_total_count}")
+    print("\n" + "="*60)
+    print("COLOR SCHEME SUMMARY")
+    print("="*60)
+    print("🔴 DocumentChunks (Reddit)   → DARK RED #8B0000 (brightness by catchiness)")
+    print("🟠 Entities (Reddit)         → ORANGE/RED #FF4500")
+    print("🟢 DocumentChunks (Research) → DARK GREEN #006400 (brightness by catchiness)")
+    print("🟢 Entities (Research)       → GREEN #00FF00")
+    print("🔵 DocumentChunks (Other)    → DARK BLUE #00008B (brightness by catchiness)")
+    print("🔵 Entities (Other)          → BLUE #5C10F4")
+    print("="*60 + "\n")
+
+    edge_labels = {}
+    links_list = []
+    for source, target, relation, edge_info in edges_data:
+        source = str(source)
+        target = str(target)
+        G.add_edge(source, target)
+        edge_labels[(source, target)] = relation
+
+        # Extract edge metadata including all weights
+        all_weights = {}
+        primary_weight = None
+
+        if edge_info:
+            # Single weight (backward compatibility)
+            if "weight" in edge_info:
+                all_weights["default"] = edge_info["weight"]
+                primary_weight = edge_info["weight"]
+
+            # Multiple weights
+            if "weights" in edge_info and isinstance(edge_info["weights"], dict):
+                all_weights.update(edge_info["weights"])
+                # Use the first weight as primary for visual thickness if no default weight
+                if primary_weight is None and edge_info["weights"]:
+                    primary_weight = next(iter(edge_info["weights"].values()))
+
+            # Individual weight fields (weight_strength, weight_confidence, etc.)
+            for key, value in edge_info.items():
+                if key.startswith("weight_") and isinstance(value, (int, float)):
+                    weight_name = key[7:]  # Remove "weight_" prefix
+                    all_weights[weight_name] = value
+
+        link_data = {
+            "source": source,
+            "target": target,
+            "relation": relation,
+            "weight": primary_weight,  # Primary weight for backward compatibility
+            "all_weights": all_weights,  # All weights for display
+            "relationship_type": edge_info.get("relationship_type") if edge_info else None,
+            "edge_info": edge_info if edge_info else {},
+        }
+        links_list.append(link_data)
+
+    html_template = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -16,7 +361,7 @@
             .node-label { font-size: 5px; font-weight: bold; fill: #F4F4F4; text-anchor: middle; dominant-baseline: middle; font-family: 'Inter', sans-serif; pointer-events: none; }
             .edge-label { font-size: 3px; fill: #F4F4F4; text-anchor: middle; dominant-baseline: middle; font-family: 'Inter', sans-serif; pointer-events: none; paint-order: stroke; stroke: rgba(50,51,50,0.75); stroke-width: 1px; }
 
-            .density path { mix-blend-mode: screen; }
+            .density path { mix-blend-mode: normal; }
 
             .tooltip {
                 position: absolute;
@@ -61,8 +406,8 @@
         <div class="tooltip" id="tooltip"></div>
         <div id="info-panel"><div class="placeholder">Hover a node or edge to inspect details</div></div>
         <script>
-            var nodes = [{"chunk_index": 0, "chunk_size": 30, "cut_type": "sentence_end", "id": "82", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Artificial intelligence is a branch of computer science that aims tocreate intelligent machines.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "82"}, {"external_metadata": "{}", "id": "83", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_eb6c3b3111581d625c8b266425803d3d", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_eb6c3b3111581d625c8b266425803d3d.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "A branch of computer science that aims to create intelligent machines.", "id": "84", "metadata": "{\"index_fields\": [\"name\"]}", "name": "artificial intelligence", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "concept", "id": "85", "metadata": "{\"index_fields\": [\"name\"]}", "name": "concept", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "The academic field of which artificial intelligence is a branch.", "id": "86", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computer science", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "field", "id": "87", "metadata": "{\"index_fields\": [\"name\"]}", "name": "field", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "Machines that exhibit intelligent behavior; the intended outcome of artificial intelligence.", "id": "88", "metadata": "{\"index_fields\": [\"name\"]}", "name": "intelligent machines", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "goal", "id": "89", "metadata": "{\"index_fields\": [\"name\"]}", "name": "goal", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"chunk_index": 0, "chunk_size": 34, "cut_type": "sentence_end", "id": "90", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is a subset of AI that focuses on algorithms that can learn from data.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "90"}, {"external_metadata": "{}", "id": "91", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_f410ffdeb8789434bd07ad0062e1d647", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_f410ffdeb8789434bd07ad0062e1d647.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "Field of study that gives computers the ability to learn from data.", "id": "92", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machine learning", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Artificial intelligence, the broader field encompassing machine learning.", "id": "93", "metadata": "{\"index_fields\": [\"name\"]}", "name": "ai", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Procedures or sets of rules used by machines; in this context, algorithms that can learn from data.", "id": "94", "metadata": "{\"index_fields\": [\"name\"]}", "name": "algorithms", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Information from which algorithms can learn.", "id": "95", "metadata": "{\"index_fields\": [\"name\"]}", "name": "data", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"chunk_index": 0, "chunk_size": 25, "cut_type": "sentence_end", "id": "96", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Natural language processing enables computers to understand and process human language.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "96"}, {"external_metadata": "{}", "id": "97", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_d5ffc3e92ccb67a18b3d147cc69dc0d7", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_d5ffc3e92ccb67a18b3d147cc69dc0d7.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "A field of study and set of techniques that enables computers to interpret and generate human language.", "id": "98", "metadata": "{\"index_fields\": [\"name\"]}", "name": "natural language processing", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Electronic machines that perform computations and process information.", "id": "99", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computers", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "device", "id": "100", "metadata": "{\"index_fields\": [\"name\"]}", "name": "device", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "Systems of communication used by humans, including spoken and written forms.", "id": "101", "metadata": "{\"index_fields\": [\"name\"]}", "name": "human language", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"chunk_index": 0, "chunk_size": 32, "cut_type": "sentence_end", "id": "102", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a subset of machine learning that uses neural networks with many layers.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "102"}, {"external_metadata": "{}", "id": "103", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_6cc7f196cd6a51f4636a43e359aa9396", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_6cc7f196cd6a51f4636a43e359aa9396.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "Subset of machine learning that uses neural networks with many layers.", "id": "104", "metadata": "{\"index_fields\": [\"name\"]}", "name": "deep learning", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Computational models composed of interconnected layers of units (neurons).", "id": "105", "metadata": "{\"index_fields\": [\"name\"]}", "name": "neural networks", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Characteristic of neural networks having multiple stacked layers (deep architecture).", "id": "106", "metadata": "{\"index_fields\": [\"name\"]}", "name": "many layers", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"chunk_index": 0, "chunk_size": 27, "cut_type": "sentence_end", "id": "107", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision allows machines to interpret and make decisionsbased on visual information.", "topological_rank": 0, "type": "DocumentChunk", "version": 1, "color": "#0DFF00", "name": "107"}, {"external_metadata": "{}", "id": "108", "metadata": "{\"index_fields\": [\"name\"]}", "mime_type": "text/plain", "name": "text_73318cb2b9ade3c9b1201abe6c52ee40", "ontology_valid": false, "raw_data_location": "file:///Users/milicevi/cognee_project/cognee-community/packages/graph/memgraph/examples/.data_storage/text_73318cb2b9ade3c9b1201abe6c52ee40.txt", "topological_rank": 0, "type": "TextDocument", "version": 1, "color": "#D3D3D3"}, {"description": "Field that enables machines to interpret and make decisions based on visual information", "id": "109", "metadata": "{\"index_fields\": [\"name\"]}", "name": "computer vision", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "Machines that process and act on visual information", "id": "110", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machines", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"description": "machine", "id": "111", "metadata": "{\"index_fields\": [\"name\"]}", "name": "machine", "ontology_valid": false, "topological_rank": 0, "type": "EntityType", "version": 1, "color": "#A550FF"}, {"description": "Visual data used for interpretation and decision making", "id": "112", "metadata": "{\"index_fields\": [\"name\"]}", "name": "visual information", "ontology_valid": false, "topological_rank": 0, "type": "Entity", "version": 1, "color": "#5C10F4"}, {"id": "113", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Artificial intelligence is a field of computer science focused on developing intelligent machines.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "113"}, {"id": "114", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Machine learning is a branch of artificial intelligence that develops algorithms to learn from data.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "114"}, {"id": "115", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Deep learning is a branch of machine learning that employs multilayer (deep) neural networks.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "115"}, {"id": "116", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Natural language processing lets computers comprehend and manipulate human language.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "116"}, {"id": "117", "metadata": "{\"index_fields\": [\"text\"]}", "ontology_valid": false, "text": "Computer vision enables machines to interpret visual data and make decisions.", "topological_rank": 0, "type": "TextSummary", "version": 1, "color": "#5C10F4", "name": "117"}];
-            var links = [{"source": "82", "target": "83", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "fc8ef988-7130-53d1-98ac-ed144c655630", "target_node_id": "192fa74b-8479-5cab-9ad3-6c2462a7dbac", "updated_at": 1764004170411792}}, {"source": "84", "target": "86", "relation": "is_branch_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_branch_of", "source_node_id": "e850203f-866a-5bfd-b687-b73ac0d2b66a", "target_node_id": "6218dbab-eb6a-5759-a864-b3419755ffe0", "updated_at": 1764004170709973}}, {"source": "90", "target": "91", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "8d97ce47-6c04-537c-aa5b-c3962c239bfc", "target_node_id": "095832cc-845c-5cb7-ad29-67003a5059bd", "updated_at": 1764004172413606}}, {"source": "92", "target": "93", "relation": "is_subset_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_subset_of", "source_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "target_node_id": "8348bd10-1457-57fe-b983-d0481fafcfc2", "updated_at": 1764004172729645}}, {"source": "96", "target": "97", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "17117670-baf6-5112-8b80-141ba933bfd1", "target_node_id": "d73cf9f5-e0ad-5cc1-adfd-48e192d4a994", "updated_at": 1764004173938357}}, {"source": "98", "target": "99", "relation": "enables", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "enables", "source_node_id": "bc338a39-64d6-549a-acec-da60846dd90d", "target_node_id": "bebbacfd-d284-52dc-9f8d-5fb58f63bdaf", "updated_at": 1764004174472036}}, {"source": "102", "target": "103", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "3a62c06c-ba22-576a-8f21-f859bd30551b", "target_node_id": "15af0808-5808-5fd6-84e9-3b20be987ca2", "updated_at": 1764004173983415}}, {"source": "104", "target": "92", "relation": "is_subset_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "is_subset_of", "source_node_id": "0d2c7a60-f91f-5b5c-a797-43baae69fb35", "target_node_id": "5187986a-7305-5a63-b057-8f2c097419eb", "updated_at": 1764004174464716}}, {"source": "107", "target": "108", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_part_of", "source_node_id": "c14a89bb-509d-5514-a6a1-fa1788aedc23", "target_node_id": "7c112749-d2f6-5692-9508-96712c388cc0", "updated_at": 1764004176642839}}, {"source": "109", "target": "110", "relation": "enables", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"ontology_valid": false, "relationship_name": "enables", "source_node_id": "4892a8ad-991e-58f6-a1a5-eb9c22c16488", "target_node_id": "e1cdb5bc-15a1-5b58-9cd0-23f5eb11a49d", "updated_at": 1764004177070713}}, {"source": "113", "target": "82", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "752f375b-918a-51fe-bca6-0b3e8c63707c", "target_node_id": "fc8ef988-7130-53d1-98ac-ed144c655630", "updated_at": 1764004177090852}}, {"source": "114", "target": "90", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "23d9575f-451e-552b-a6da-62270638dec2", "target_node_id": "8d97ce47-6c04-537c-aa5b-c3962c239bfc", "updated_at": 1764004180012204}}, {"source": "115", "target": "102", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "058ae734-122b-58be-af08-9eecc444d4df", "target_node_id": "3a62c06c-ba22-576a-8f21-f859bd30551b", "updated_at": 1764004182887762}}, {"source": "116", "target": "96", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "09398855-355d-58e0-998c-57ac58616a34", "target_node_id": "17117670-baf6-5112-8b80-141ba933bfd1", "updated_at": 1764004183471483}}, {"source": "117", "target": "107", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "made_from", "source_node_id": "71b3f33e-9262-56f1-8aea-854b22363824", "target_node_id": "c14a89bb-509d-5514-a6a1-fa1788aedc23", "updated_at": 1764004183457647}}];
+            var nodes = {nodes};
+            var links = {links};
 
             var svg = d3.select("svg"),
                 width = window.innerWidth,
@@ -96,11 +441,20 @@
                 var entries = [];
                 if (n.name) entries.push({k:'Name', v: n.name});
                 if (n.type) entries.push({k:'Type', v: n.type});
+                
+                // Prioritize catchiness and source display
+                if (n.catchiness !== undefined && n.catchiness !== null) {
+                    entries.push({k:'Catchiness', v: n.catchiness + '/10'});
+                }
+                if (n.source) entries.push({k:'Source', v: n.source});
+                
                 if (n.id) entries.push({k:'ID', v: n.id});
                 var desc = pickDescription(n) || pickDescription(n.properties);
                 if (desc) entries.push({k:'Description', v: truncate(desc.replace(/\s+/g,' ').trim(), 280)});
                 if (n.properties) {
                     Object.keys(n.properties).slice(0, 12).forEach(function(key){
+                        // Skip if already displayed at top level
+                        if (key === 'catchiness' || key === 'source') return;
                         var v = n.properties[key];
                         if (v !== undefined && v !== null && typeof v !== 'object') entries.push({k: key, v: String(v)});
                     });
@@ -180,7 +534,14 @@
             var densityZoomTimer = null;
             var isInteracting = false;
             var labelBaseSize = 10;
-            function getGroupKey(d){ return d && (d.type || d.category || d.group || d.color) || 'default'; }
+            // Group by type AND color to separate Reddit (yellow/orange) from RSS (green/purple)
+            function getGroupKey(d){ 
+                if (!d) return 'default';
+                var typeKey = d.type || 'unknown';
+                var colorKey = d.color || 'default';
+                // Create unique groups for different colored nodes of same type
+                return typeKey + '_' + colorKey;
+            }
 
             var simulation = d3.forceSimulation(nodes)
                 .force("link", d3.forceLink(links).id(function(d){ return d.id; }).distance(100).strength(0.2))
@@ -195,7 +556,8 @@
             // Density layer (sibling of container to avoid double transforms)
             var densityLayer = svg.append("g")
                 .attr("class", "density")
-                .style("pointer-events", "none");
+                .style("pointer-events", "none")
+                .style("opacity", 0.75);  // Balanced opacity - visible but not overwhelming
             if (densityLayer.lower) densityLayer.lower();
 
             var link = container.append("g")
@@ -290,7 +652,7 @@
             var colorByType = {
                 "Entity": "#5C10F4",
                 "EntityType": "#A550FF",
-                "DocumentChunk": "#0DFF00",
+                "DocumentChunk": "#808080",  // Gray default, should be set by server logic
                 "TextSummary": "#5C10F4",
                 "TableRow": "#A550FF",
                 "TableType": "#5C10F4",
@@ -336,7 +698,7 @@
                     .style("stroke", function(l){ return isAdjacent(l, nodeId) ? "rgba(255,255,255,0.95)" : null; })
                     .style("stroke-width", function(l){ return isAdjacent(l, nodeId) ? 2.5 : 1.5; });
                 edgeLabels.style("opacity", function(l){ return isAdjacent(l, nodeId) ? 1 : 0; });
-                densityLayer.style("opacity", 0.35);
+                densityLayer.style("opacity", 0.25);  // Dim clouds when showing adjacency
 
                 // Highlight neighbor nodes and dim others
                 node
@@ -359,7 +721,7 @@
                     .style("stroke", null)
                     .style("stroke-width", 1.5);
                 edgeLabels.style("opacity", 0);
-                densityLayer.style("opacity", 1);
+                densityLayer.style("opacity", 0.75);  // Balanced opacity - visible but prevents white wash
                 node
                     .style("opacity", 1)
                     .style("filter", "url(#glow)")
@@ -441,9 +803,29 @@
 
                     densityLayer.selectAll('*').remove();
 
+                    // Calculate density metrics for each group to sort by dominance
+                    var groupMetrics = [];
                     Object.keys(groups).forEach(function(key){
                         var arr = groups[key];
                         if (!arr || arr.length < 3) return;
+                        groupMetrics.push({
+                            key: key,
+                            arr: arr,
+                            size: arr.length
+                        });
+                    });
+                    
+                    // Sort groups by size (larger groups rendered last so they're on top where they're dense)
+                    groupMetrics.sort(function(a, b){ return a.size - b.size; });
+                    
+                    // Debug: log group sizes
+                    console.log('Density cloud groups:', groupMetrics.map(function(g){ 
+                        return g.key + ': ' + g.size + ' nodes'; 
+                    }).join(', '));
+
+                    groupMetrics.forEach(function(groupData){
+                        var key = groupData.key;
+                        var arr = groupData.arr;
 
                         // Transform positions into screen space and sample to cap cost
                         var arrT = [];
@@ -467,15 +849,20 @@
                             sumR += Math.sqrt(dx*dx + dy*dy);
                         }
                         var avgR = sumR / arrT.length;
-                        var dynamicBandwidth = Math.max(12, Math.min(80, avgR));
+                        
+                        // Adjust bandwidth based on node type - entities tend to be more spread out
+                        var isEntityGroup = key.indexOf('Entity') >= 0;
+                        var baseMultiplier = isEntityGroup ? 1.3 : 1.0;  // Wider bandwidth for entities
+                        var dynamicBandwidth = Math.max(12, Math.min(80, avgR * baseMultiplier));
                         var densityBandwidth = dynamicBandwidth / (t.k || 1);
 
+                        var numThresholds = isEntityGroup ? 10 : 8;  // More contours for entities
                         var contours = d3.contourDensity()
                             .x(function(d){ return d.x; })
                             .y(function(d){ return d.y; })
                             .size([width, height])
                             .bandwidth(densityBandwidth)
-                            .thresholds(8)
+                            .thresholds(numThresholds)
                             (arrT);
 
                         if (!contours || contours.length === 0) return;
@@ -495,10 +882,15 @@
                             .attr('stroke', 'none')
                             .style('opacity', function(d){
                                 var v = maxVal ? (d.value / maxVal) : 0;
-                                var alpha = Math.pow(Math.max(0, Math.min(1, v)), 1.6); // accentuate clusters
-                                return 0.65 * alpha; // up to 0.65 opacity at peak density
+                                // Adjust power curve based on node type
+                                // Entities: less aggressive curve so they show even when spread out
+                                // DocumentChunks: more aggressive to show only tight clusters
+                                var power = isEntityGroup ? 2.0 : 2.5;
+                                var alpha = Math.pow(Math.max(0, Math.min(1, v)), power);
+                                // High opacity in dense areas means dominant color wins
+                                return 0.6 * alpha;
                             })
-                            .style('filter', 'blur(2px)');
+                            .style('filter', 'blur(3px)');
                     });
                 } catch (e) {
                     // Reduce impact of any runtime errors during zoom
@@ -530,14 +922,14 @@
             });
 
             var zoomBehavior = d3.zoom()
-                .on("start", function(){ isInteracting = true; densityLayer.style("opacity", 0.2); })
+                .on("start", function(){ isInteracting = true; densityLayer.style("opacity", 0.25); })
                 .on("zoom", function(){
                     currentTransform = d3.event.transform;
                     container.attr("transform", currentTransform);
                 })
                 .on("end", function(){
                     if (densityZoomTimer) clearTimeout(densityZoomTimer);
-                    densityZoomTimer = setTimeout(function(){ isInteracting = false; densityLayer.style("opacity", 1); updateDensity(); }, 140);
+                    densityZoomTimer = setTimeout(function(){ isInteracting = false; densityLayer.style("opacity", 0.75); updateDensity(); }, 140);
                 });
             svg.call(zoomBehavior);
 
@@ -546,7 +938,7 @@
                 d.fx = d.x;
                 d.fy = d.y;
                 isInteracting = true;
-                densityLayer.style("opacity", 0.2);
+                densityLayer.style("opacity", 0.25);
             }
 
             function dragged(d) {
@@ -559,7 +951,7 @@
                 d.fx = null;
                 d.fy = null;
                 if (densityZoomTimer) clearTimeout(densityZoomTimer);
-                densityZoomTimer = setTimeout(function(){ isInteracting = false; densityLayer.style("opacity", 1); updateDensity(); }, 140);
+                densityZoomTimer = setTimeout(function(){ isInteracting = false; densityLayer.style("opacity", 0.75); updateDensity(); }, 140);
             }
 
             window.addEventListener("resize", function() {
@@ -582,4 +974,26 @@
         </svg>
     </body>
     </html>
-    
+    """
+
+    # Safely embed JSON inside <script> by escaping </ to avoid prematurely closing the tag
+    def _safe_json_embed(obj):
+        return json.dumps(obj).replace("</", "<\\/")
+
+    html_content = html_template.replace("{nodes}", _safe_json_embed(nodes_list))
+    html_content = html_content.replace("{links}", _safe_json_embed(links_list))
+
+    if not destination_file_path:
+        home_dir = os.path.expanduser("~")
+        destination_file_path = os.path.join(home_dir, "graph_visualization.html")
+
+    dir_path = os.path.dirname(destination_file_path)
+    file_path = os.path.basename(destination_file_path)
+
+    file_storage = LocalFileStorage(dir_path)
+
+    file_storage.store(file_path, html_content, overwrite=True)
+
+    logger.info(f"Graph visualization saved as {destination_file_path}")
+
+    return html_content

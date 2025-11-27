@@ -178,7 +178,6 @@ class RedisAdapter(VectorDBInterface):
         try:
             index = self._get_index(collection_name)
             result = await index.exists()
-            await index.disconnect()
             return result
         except Exception:
             return False
@@ -211,8 +210,6 @@ class RedisAdapter(VectorDBInterface):
             except Exception as e:
                 logger.error(f"Error creating collection {collection_name}: {str(e)}")
                 raise e
-            finally:
-                await index.disconnect()
 
     async def create_data_points(self, collection_name: str, data_points: list[DataPoint]) -> None:
         """Create data points in the collection.
@@ -228,7 +225,6 @@ class RedisAdapter(VectorDBInterface):
         index = self._get_index(collection_name)
         try:
             if not await self.has_collection(collection_name):
-                await index.disconnect()
                 raise CollectionNotFoundError(f"Collection {collection_name} not found!")
 
             # Embed the data points
@@ -262,8 +258,6 @@ class RedisAdapter(VectorDBInterface):
         except Exception as e:
             logger.error(f"Error creating data points: {str(e)}")
             raise e
-        finally:
-            await index.disconnect()
 
     async def create_vector_index(self, index_name: str, index_property_name: str) -> None:
         """Create a vector index for a specific property.
@@ -328,8 +322,6 @@ class RedisAdapter(VectorDBInterface):
         except Exception as e:
             logger.error(f"Error retrieving data points: {str(e)}")
             return []
-        finally:
-            await index.disconnect()
 
     async def search(
         self,
@@ -371,7 +363,6 @@ class RedisAdapter(VectorDBInterface):
             limit = info["num_docs"]
 
         if limit <= 0:
-            await index.disconnect()
             return []
 
         try:
@@ -419,8 +410,6 @@ class RedisAdapter(VectorDBInterface):
         except Exception as e:
             logger.error(f"Error during search: {str(e)}")
             raise e
-        finally:
-            await index.disconnect()
 
     async def batch_search(
         self,
@@ -485,8 +474,6 @@ class RedisAdapter(VectorDBInterface):
         except Exception as e:
             logger.error(f"Error deleting data points: {str(e)}")
             raise e
-        finally:
-            await index.disconnect()
 
     async def prune(self) -> None:
         """Remove all collections and data from Redis.
@@ -503,10 +490,8 @@ class RedisAdapter(VectorDBInterface):
                     if await index.exists():
                         await index.delete(drop=True)
                         logger.info(f"Dropped index {collection_name}")
-                    await index.disconnect()
                 except Exception as e:
                     logger.warning(f"Failed to drop index {collection_name}: {str(e)}")
-                    await index.disconnect()
 
             # Clear the indices cache
             self._indices.clear()
