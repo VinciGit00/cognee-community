@@ -16,8 +16,8 @@ from cognee.tasks.graph import extract_graph_from_data
 from cognee.tasks.ingestion import ingest_data
 from cognee.tasks.storage import add_data_points
 from cognee.tasks.summarization import summarize_text
-from cognee_community_tasks.get_non_code_files import get_non_py_files
-from cognee_community_tasks.get_repo_file_dependencies import get_repo_file_dependencies
+from cognee_community_tasks_codify.get_non_code_files import get_non_py_files
+from cognee_community_tasks_codify.get_repo_file_dependencies import get_repo_file_dependencies
 
 observe = get_observe()
 
