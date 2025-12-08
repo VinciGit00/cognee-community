@@ -58,4 +58,5 @@ jobs:
           package-path: packages/pipeline/codify_pipeline
 
       - name: Run Codify Example
+        working-directory: ./packages/pipeline/codify_pipeline
         run: poetry run python ./examples/codify_example.py
