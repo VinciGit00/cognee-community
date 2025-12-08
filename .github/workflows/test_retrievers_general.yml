@@ -55,4 +55,4 @@ jobs:
           package-path: packages/retriever/code_retriever
 
       - name: Run Search Type Test
-        run: uv run python ../tests/test_search_type.py
+        run: poetry run python ../tests/test_search_type.py

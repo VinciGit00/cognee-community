@@ -2,6 +2,11 @@ name: Test Codify Community Pipeline
 
 on:
   workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.11.x"
     secrets:
       LLM_MODEL:
         required: true
@@ -21,7 +26,7 @@ on:
         required: true
   workflow_dispatch:
   pull_request:
-    branches: [ main, dev ]
+    branches: [ main ]
 
 jobs:
   test-codify:
@@ -53,4 +58,4 @@ jobs:
           package-path: packages/pipeline/codify_pipeline
 
       - name: Run Codify Example
-        run: uv run python ./examples/codify_example.py
+        run: poetry run python ./examples/codify_example.py
