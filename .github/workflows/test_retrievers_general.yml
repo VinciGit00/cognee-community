@@ -55,5 +55,5 @@ jobs:
           package-path: packages/retriever/code_retriever
 
       - name: Run Search Type Test
-        working-directory: ./packages/pipeline/codify_pipeline
+        working-directory: ./packages/retriever/code_retriever
         run: poetry run python ../tests/test_search_type.py
