@@ -57,6 +57,36 @@ jobs:
       EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
       EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
 
+  test-community-pipelines:
+    name: Test Community Pipelines
+    uses: ./.github/workflows/community_pipeline_tests.yml
+    with:
+      python-version: ${{ inputs.python-version || '3.11.x' }}
+    secrets:
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+      EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+      EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+      EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+      EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+
+  test-community-retrievers:
+    name: Test Community Retrievers
+    uses: ./.github/workflows/test_retrievers_general.yml
+    with:
+      python-version: ${{ inputs.python-version || '3.11.x' }}
+    secrets:
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+      EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+      EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+      EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+      EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+
   summary:
     name: Test Summary
     runs-on: ubuntu-22.04

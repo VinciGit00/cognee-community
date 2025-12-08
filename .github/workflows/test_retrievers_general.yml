@@ -1,0 +1,58 @@
+name: Community Retriever General Tests
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.11.x"
+    secrets:
+      LLM_MODEL:
+        required: true
+      LLM_ENDPOINT:
+        required: true
+      LLM_API_KEY:
+        required: true
+      LLM_API_VERSION:
+        required: true
+      EMBEDDING_MODEL:
+        required: true
+      EMBEDDING_ENDPOINT:
+        required: true
+      EMBEDDING_API_KEY:
+        required: true
+      EMBEDDING_API_VERSION:
+        required: true
+
+jobs:
+  test-search-type:
+    name: Run Search Type Tests
+    runs-on: ubuntu-22.04
+    env:
+      ENV: 'dev'
+      LLM_PROVIDER: openai
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_API_VERSION: ${{ secrets.LLM_API_VERSION }}
+
+      EMBEDDING_PROVIDER: openai
+      EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+      EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
+      EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+      EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Community Setup
+        uses: ./.github/actions/community_setup
+        with:
+          python-version: ${{ inputs.python-version }}
+          package-path: packages/retriever/code_retriever
+
+      - name: Run Search Type Test
+        run: uv run python ../tests/test_search_type.py
