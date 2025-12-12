@@ -977,6 +977,9 @@ class FalkorDBAdapter:
         """
         Delete the entire graph along with all its indices and nodes.
         """
+        if self.graph_name not in self.driver.list_graphs():
+            return
+
         try:
             graph = self.driver.select_graph(self.graph_name)
 
