@@ -29,4 +29,6 @@ jobs:
   test-codify:
     name: "Codify Community Pipeline Test"
     uses: ./.github/workflows/test_codify.yml
+    with:
+      python-version: ${{ inputs.python-version || '3.11.x' }}
     secrets: inherit
