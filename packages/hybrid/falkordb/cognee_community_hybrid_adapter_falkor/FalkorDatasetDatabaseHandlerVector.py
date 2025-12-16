@@ -25,6 +25,7 @@ class FalkorDatasetDatabaseHandlerVector(DatasetDatabaseHandlerInterface):
             "vector_database_url": vector_config.vector_db_url,
             "vector_database_key": vector_config.vector_db_key,
             "vector_database_name": vector_db_name,
+            "vector_dataset_database_handler": "falkor_vector",
         }
 
     @classmethod
