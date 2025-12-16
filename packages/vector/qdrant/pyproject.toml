@@ -1,12 +1,12 @@
 [project]
 name = "cognee-community-vector-adapter-qdrant"
-version = "0.1.0"
+version = "0.2.0"
 description = "Qdrant vector database adapter for cognee"
 readme = "README.md"
 requires-python = ">=3.11,<=3.13"
 dependencies = [
     "qdrant-client>=1.16.0",
-    "cognee>=0.4.0",
+    "cognee==0.5.0",
     "starlette>=0.48.0",
     "instructor>=1.11"
 ]
