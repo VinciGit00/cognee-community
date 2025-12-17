@@ -17,6 +17,10 @@ inputs:
     description: "Target file/directory for mypy (relative to package-path)"
     required: false
     default: "."
+  event-type:
+    description: "The type of event that triggered the execution of the test suite (e.g. new-main-release)"
+    required: false
+    default: "regular-testing-event"
 
 runs:
   using: "composite"
@@ -44,6 +48,13 @@ runs:
           poetry install --no-interaction
         fi
       working-directory: ./
+
+    - name: Use latest Cognee package
+      if: ${{ inputs.event-type == 'new-main-release' }}
+      shell: bash
+      run: |
+        pip uninstall cognee
+        pip install cognee
 
     - name: Verify installation
       shell: bash
