@@ -2,6 +2,11 @@ name: Test Redis Community Adapter
 
 on:
   workflow_call:
+    inputs:
+      event-type:
+        required: false
+        type: string
+        default: "regular-testing-event"
     secrets:
       LLM_MODEL:
         required: true
@@ -47,6 +52,7 @@ jobs:
         with:
           python-version: '3.11.x'
           package-path: packages/vector/redis
+          event-type: ${{ inputs.event-type }}
 
       - name: Wait for Redis to be ready
         run: |

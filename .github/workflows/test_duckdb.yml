@@ -2,6 +2,11 @@ name: Test DuckDB Community Adapter
 
 on:
   workflow_call:
+    inputs:
+      event-type:
+        required: false
+        type: string
+        default: "regular-testing-event"
     secrets:
       LLM_MODEL:
         required: true
@@ -42,6 +47,7 @@ jobs:
         with:
           python-version: '3.12.x'
           package-path: packages/hybrid/duckdb
+          event-type: ${{ inputs.event-type }}
 
       - name: Run DuckDB Example
         env:

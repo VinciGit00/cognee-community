@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: "3.11.x"
+      event-type:
+          required: false
+          type: string
+          default: "regular-testing-event"
     secrets:
       LLM_MODEL:
         required: true
@@ -58,6 +62,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
           package-path: packages/pipeline/codify_pipeline
+          event-type: ${{ inputs.event-type }}
 
       - name: Run Codify Example
         working-directory: ./packages/pipeline/codify_pipeline

@@ -2,6 +2,11 @@ name: Test Milvus Community Adapter
 
 on:
   workflow_call:
+    inputs:
+      event-type:
+        required: false
+        type: string
+        default: "regular-testing-event"
     secrets:
       LLM_MODEL:
         required: true
@@ -44,6 +49,7 @@ jobs:
           package-path: packages/vector/milvus
           run-mypy: 'true'
           mypy-target: '.'
+          event-type: ${{ inputs.event-type }}
 
       - name: Start Milvus using official script
         run: |

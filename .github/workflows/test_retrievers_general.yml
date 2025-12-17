@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: "3.11.x"
+      event-type:
+        required: false
+        type: string
+        default: "regular-testing-event"
     secrets:
       LLM_MODEL:
         required: true
@@ -53,6 +57,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
           package-path: packages/retriever/code_retriever
+          event-type: ${{ inputs.event-type }}
 
       - name: Run Search Type Test
         working-directory: ./packages/retriever/code_retriever

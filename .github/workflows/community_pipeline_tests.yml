@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: "3.11.x"
+      event-type:
+        required: false
+        type: string
+        default: "regular-testing-event"
     secrets:
       LLM_MODEL:
         required: true
@@ -31,4 +35,5 @@ jobs:
     uses: ./.github/workflows/test_codify.yml
     with:
       python-version: ${{ inputs.python-version || '3.11.x' }}
+      event-type: ${{ inputs.event-type }}
     secrets: inherit

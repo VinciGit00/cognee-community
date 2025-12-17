@@ -54,29 +54,39 @@ jobs:
   test-weaviate:
     name: "Weaviate Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'weaviate') }}
+    with:
+      event-type: ${{ inputs.event-type }}
     uses: ./.github/workflows/test_weaviate.yml
     secrets: inherit
 
   test-opensearch:
     name: "OpenSearch Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'opensearch') }}
+    with:
+      event-type: ${{ inputs.event-type }}
     uses: ./.github/workflows/test_opensearch.yml
     secrets: inherit
 
   test-redis:
     name: "Redis Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'redis') }}
+    with:
+      event-type: ${{ inputs.event-type }}
     uses: ./.github/workflows/test_redis.yml
     secrets: inherit
 
   test-milvus:
     name: "Milvus Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'milvus') }}
+    with:
+      event-type: ${{ inputs.event-type }}
     uses: ./.github/workflows/test_milvus.yml
     secrets: inherit
 
   test-duckdb:
     name: "DuckDB Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'duckdb') }}
+    with:
+      event-type: ${{ inputs.event-type }}
     uses: ./.github/workflows/test_duckdb.yml
     secrets: inherit

@@ -12,6 +12,10 @@ on:
         required: false
         type: string
         default: "3.11.x"
+      event-type:
+        required: false
+        type: string
+        default: "regular-testing-event"
     secrets:
       LLM_MODEL:
         required: true
@@ -44,6 +48,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
           package-path: packages/graph/networkx
+          event-type: ${{ inputs.event-type }}
 
       - name: Run NetworkX Tests
         env:
@@ -63,11 +68,15 @@ jobs:
   test-memgraph:
     name: "Memgraph Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'memgraph') }}
+    with:
+      event-type: ${{ inputs.event-type }}
     uses: ./.github/workflows/test_memgraph.yml
     secrets: inherit
 
   test-falkordb:
     name: "FalkorDB Community Adapter Test"
     if: ${{ inputs.databases == 'all' || contains(inputs.databases, 'falkordb') }}
+    with:
+      event-type: ${{ inputs.event-type }}
     uses: ./.github/workflows/test_falkordb.yml
     secrets: inherit 
