@@ -53,6 +53,7 @@ runs:
       if: ${{ inputs.event-type == 'new-main-release' }}
       shell: bash
       run: |
+        cd ${{ inputs.package-path }}
         pip uninstall cognee
         pip install cognee
 
