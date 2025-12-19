@@ -94,9 +94,24 @@ class QDrantAdapter(VectorDBInterface):
                     vectors_config={
                         "text": models.VectorParams(
                             size=self.embedding_engine.get_vector_size(),
-                            distance="Cosine",
+                            distance=models.Distance.COSINE,
                         )
                     },
+                    # With this config definition, we avoid creating a global index
+                    hnsw_config=models.HnswConfigDiff(
+                        payload_m=16,
+                        m=0,
+                    ),
+                )
+                # This index co-locates vectors from the same dataset together,
+                # which can improve performance
+                await client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name="database_name",
+                    field_schema=models.KeywordIndexParams(
+                        type=models.KeywordIndexType.KEYWORD,
+                        is_tenant=True,
+                    ),
                 )
 
             await client.close()
