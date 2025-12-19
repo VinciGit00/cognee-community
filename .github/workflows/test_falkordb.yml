@@ -78,8 +78,8 @@ jobs:
           GRAPH_DATABASE_PROVIDER: 'falkordb'
           GRAPH_DB_URL: 'localhost'
           GRAPH_DB_PORT: '6379'
-          GRAPH_DATASET_DATABASE_HANDLER: 'falkor_graph'
-          VECTOR_DATASET_DATABASE_HANDLER: 'falkor_vector'
+          GRAPH_DATASET_DATABASE_HANDLER: 'falkor_graph_local'
+          VECTOR_DATASET_DATABASE_HANDLER: 'falkor_vector_local'
         working-directory: ./packages/hybrid/falkordb
         run: poetry run python examples/example.py
 

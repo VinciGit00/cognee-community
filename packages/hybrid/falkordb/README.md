@@ -95,8 +95,8 @@ Set the following environment variables or pass them directly in the config, or 
 ```bash
 export GRAPH_DB_URL="localhost"
 export GRAPH_DB_PORT="6379"
-export GRAPH_DATASET_DATABASE_HANDLER="falkor_graph"
-export VECTOR_DATASET_DATABASE_HANDLER="falkor_vector"
+export GRAPH_DATASET_DATABASE_HANDLER="falkor_graph_local"
+export VECTOR_DATASET_DATABASE_HANDLER="falkor_vector_local"
 ```
 
 **Alternative:** You can also use the [`.env.template`](https://github.com/topoteretes/cognee/blob/main/.env.template) file from the main cognee repository. Copy it to your project directory, rename it to `.env`, and fill in your FalkorDB configuration values.

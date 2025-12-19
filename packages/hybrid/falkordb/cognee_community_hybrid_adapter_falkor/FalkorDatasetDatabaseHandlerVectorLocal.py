@@ -7,7 +7,7 @@ from cognee.infrastructure.databases.vector.create_vector_engine import create_v
 from cognee.modules.users.models import DatasetDatabase, User
 
 
-class FalkorDatasetDatabaseHandlerVector(DatasetDatabaseHandlerInterface):
+class FalkorDatasetDatabaseHandlerVectorLocal(DatasetDatabaseHandlerInterface):
     @classmethod
     async def create_dataset(cls, dataset_id: Optional[UUID], user: Optional[User]) -> dict:
         vector_config = get_vectordb_config()
@@ -25,7 +25,7 @@ class FalkorDatasetDatabaseHandlerVector(DatasetDatabaseHandlerInterface):
             "vector_database_url": vector_config.vector_db_url,
             "vector_database_key": vector_config.vector_db_key,
             "vector_database_name": vector_db_name,
-            "vector_dataset_database_handler": "falkor_vector",
+            "vector_dataset_database_handler": "falkor_vector_local",
         }
 
     @classmethod

@@ -7,7 +7,7 @@ from cognee.infrastructure.databases.graph.get_graph_engine import create_graph_
 from cognee.modules.users.models import DatasetDatabase, User
 
 
-class FalkorDatasetDatabaseHandlerGraph(DatasetDatabaseHandlerInterface):
+class FalkorDatasetDatabaseHandlerGraphLocal(DatasetDatabaseHandlerInterface):
     @classmethod
     async def create_dataset(cls, dataset_id: Optional[UUID], user: Optional[User]) -> dict:
         graph_config = get_graph_config()
@@ -30,7 +30,7 @@ class FalkorDatasetDatabaseHandlerGraph(DatasetDatabaseHandlerInterface):
             "graph_database_url": graph_db_url,
             "graph_database_provider": graph_config.graph_database_provider,
             "graph_database_key": graph_db_key,
-            "graph_dataset_database_handler": "falkor_graph",
+            "graph_dataset_database_handler": "falkor_graph_local",
             "graph_database_connection_info": {
                 "graph_database_username": graph_db_username,
                 "graph_database_password": graph_db_password,
