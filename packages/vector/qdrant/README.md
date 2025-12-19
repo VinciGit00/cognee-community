@@ -34,5 +34,10 @@ Import and register the adapter in your code:
 from cognee_community_vector_adapter_qdrant import register
 ```
 
+Also, specify the dataset handler in the .env file:
+```dotenv
+VECTOR_DATASET_DATABASE_HANDLER="qdrant"
+```
+
 ## Example
 See example in `example.py` file.

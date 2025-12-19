@@ -45,8 +45,16 @@ class QDrantAdapter(VectorDBInterface):
     api_key: str = None
     qdrant_path: str = None
 
-    def __init__(self, url, api_key, embedding_engine: EmbeddingEngine, qdrant_path=None):
+    def __init__(
+        self,
+        url,
+        api_key,
+        embedding_engine: EmbeddingEngine,
+        qdrant_path=None,
+        database_name: str = "cognee_db",
+    ):
         self.embedding_engine = embedding_engine
+        self.database_name = database_name
 
         if qdrant_path is not None:
             self.qdrant_path = qdrant_path
@@ -86,9 +94,24 @@ class QDrantAdapter(VectorDBInterface):
                     vectors_config={
                         "text": models.VectorParams(
                             size=self.embedding_engine.get_vector_size(),
-                            distance="Cosine",
+                            distance=models.Distance.COSINE,
                         )
                     },
+                    # With this config definition, we avoid creating a global index
+                    hnsw_config=models.HnswConfigDiff(
+                        payload_m=16,
+                        m=0,
+                    ),
+                )
+                # This index co-locates vectors from the same dataset together,
+                # which can improve performance
+                await client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name="database_name",
+                    field_schema=models.KeywordIndexParams(
+                        type=models.KeywordIndexType.KEYWORD,
+                        is_tenant=True,
+                    ),
                 )
 
             await client.close()
@@ -105,7 +128,7 @@ class QDrantAdapter(VectorDBInterface):
         def convert_to_qdrant_point(data_point: DataPoint):
             return models.PointStruct(
                 id=str(data_point.id),
-                payload=data_point.model_dump(),
+                payload={**data_point.model_dump(), "database_name": self.database_name},
                 vector={"text": data_vectors[data_points.index(data_point)]},
             )
 
@@ -182,6 +205,16 @@ class QDrantAdapter(VectorDBInterface):
             query_result = await client.query_points(
                 collection_name=collection_name,
                 query=query_vector,
+                query_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="database_name",
+                            match=models.MatchValue(
+                                value=self.database_name,
+                            ),
+                        )
+                    ]
+                ),
                 using="text",
                 limit=limit,
                 with_vectors=with_vector,
@@ -246,6 +279,16 @@ class QDrantAdapter(VectorDBInterface):
             query_results = await client.query_batch(
                 collection_name=collection_name,
                 query_texts=query_texts,
+                query_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="database_name",
+                            match=models.MatchValue(
+                                value=self.database_name,
+                            ),
+                        )
+                    ]
+                ),
                 limit=limit,
                 with_vectors=with_vectors,
             )
@@ -278,7 +321,22 @@ class QDrantAdapter(VectorDBInterface):
         response = await client.get_collections()
 
         for collection in response.collections:
-            await client.delete_collection(collection.name)
+            await client.delete(
+                collection.name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="database_name",
+                                match=models.MatchValue(value=self.database_name),
+                            )
+                        ]
+                    )
+                ),
+            )
+            remaining_points = await client.count(collection_name=collection.name)
+            if remaining_points.count == 0:
+                await client.delete_collection(collection_name=collection.name)
 
         await client.close()
 
@@ -294,7 +352,23 @@ class QDrantAdapter(VectorDBInterface):
 
         response = await client.get_collections()
 
-        result = [collection.name for collection in response.collections]
+        # We do this filtering because one user could see another user's collections otherwise
+        result = []
+        for collection in response.collections:
+            relevant_count = await client.count(
+                collection_name=collection.name,
+                count_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="database_name", match=models.MatchValue(value=self.database_name)
+                        )
+                    ]
+                ),
+                exact=True,
+            )
+
+            if relevant_count.count > 0:
+                result.append(collection.name)
 
         await client.close()
 
