@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **Note for contributors:** When branching out, create a new branch from the `main` branch.
+
 # 🎉 Welcome to **cognee**! 
 
 We're excited that you're interested in contributing to our project! 
@@ -85,6 +88,10 @@ When writing new features, adapters, or pipelines, follow these guidelines:
 3. **Tests**: Add tests for new features/adapters
 4. **Commits**: Write clear commit messages
 
+For more specific instructions, you will find README files in packages (e.g. for a specific adapter like [qdrant](https://github.com/topoteretes/cognee-community/blob/main/packages/vector/qdrant/README.md)),
+and directories (e.g. general README for [pipelines](https://github.com/topoteretes/cognee-community/blob/main/packages/pipeline/README.md))
+detailing how to install, use, and contribute to those packages, or create similar new ones.
+
 ### Writing and Running Tests
 
 When adding new features, e.g. a new adapter, write **at least** 
@@ -92,7 +99,7 @@ the examples and tests equivalent to other existing adapters.
 These can usually be found in the **examples** and **tests**
 directories of the adapter package.
 
-Run them, and **make sure they work before opening a PR**.
+**Make sure examples and tests run correctly before opening a PR**.
 
 ## 4. 📤 Submitting Changes
 

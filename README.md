@@ -36,7 +36,8 @@ cognee builds AI memory, next-generation tooling that is more accurate than RAG
 
 ## Get started
 
-This is community plugins repo, for core repo and on how to get started with cognee, please check: https://github.com/topoteretes/cognee
+This is a community-maintained plugins repo, where you can find various implementations of adapters, custom pipelines, etc.
+You can check out our [core repo](https://github.com/topoteretes/cognee) on how to get started with cognee.
 
 You can install the chosen community package in two different ways:
 
@@ -54,9 +55,7 @@ Navigate to the packages folder and the adapter of your choice, and run either o
 
 ```bash
 uv sync --all-extras
-```
-OR
-```bash
+# OR
 poetry install
 ```
 
@@ -66,19 +65,17 @@ Before importing cognee, make sure to define your key like so:
 import os
 os.environ["LLM_API_KEY"] = "YOUR OPENAI_API_KEY"
 ```
-You can also set the variables by creating .env file, using our <a href="https://github.com/topoteretes/cognee/blob/main/.env.template">template.</a>
-To use different LLM providers, for more info check out our <a href="https://docs.cognee.ai">documentation</a>
+You can also set the variables by creating a `.env` file, using our <a href="https://github.com/topoteretes/cognee/blob/main/.env.template">template.</a>
+To use different LLM providers, for more info check out our <a href="https://docs.cognee.ai">documentation</a>.
 
 ### Run an example to verify installation
 
-Navigate to the vector or graph store provider of choice and run the example, usually found in the **examples** directory.
+Navigate to the package directory of your choice and run the example, usually found in the **examples** directory.
 You can run them either via uv, or poetry:
 
 ```bash
 uv run python ./examples/example.py
-```
-OR
-```bash
+# OR
 poetry run python ./examples/example.py
 ```
 
@@ -103,7 +100,7 @@ poetry run python ./examples/example.py
 
 Custom packages are also a part of this repo, containing, for example, custom pipelines, tasks, and retrievers.
 Every pipeline has its own package, as well as every retriever. Tasks are grouped so that all mutually relevant tasks
-are contained in one package.
+are contained in one package (i.e. all tasks used in one pipeline are packaged together).
 
 ### Current Custom Packages
 
