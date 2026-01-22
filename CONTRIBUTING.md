@@ -6,9 +6,9 @@ This guide will help you get started and ensure your contributions can be effici
 
 ## 🌟 Quick Links
 
-- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Code of Conduct](https://github.com/topoteretes/cognee/blob/main/CODE_OF_CONDUCT.md)
 - [Discord Community](https://discord.gg/bcy8xFAtfd)  
-- [Issue Tracker](https://github.com/topoteretes/cognee/issues)
+- [Issue Tracker](https://github.com/topoteretes/cognee-community/issues)
 
 ## 1. 🚀 Ways to Contribute
 
@@ -25,7 +25,7 @@ You can contribute to **cognee** in many ways:
 There are several ways to connect with the **cognee** team and community:
 
 ### GitHub Collaboration
-- [Open an issue](https://github.com/topoteretes/cognee/issues) for bug reports, feature requests, or discussions
+- [Open an issue](https://github.com/topoteretes/cognee-community/issues) for bug reports, feature requests, or discussions
 - Submit pull requests to contribute code or documentation
 - Join ongoing discussions in existing issues and PRs
 
@@ -52,6 +52,8 @@ To help you find the most appropriate issues to work on, we use the following la
 - `help wanted` - Extra attention or assistance needed
 - `question` - Further information is requested
 - `wontfix` - This will not be worked on
+- `duplicate` - This issue or pull request already exists
+- `invalid` - This doesn't seem right
 
 Looking for a place to start? Try filtering for [good first issues](https://github.com/topoteretes/cognee/labels/good%20first%20issue)!
 
@@ -60,11 +62,11 @@ Looking for a place to start? Try filtering for [good first issues](https://gith
 
 ### Fork and Clone
 
-1. Fork the [**cognee**](https://github.com/topoteretes/cognee) repository
+1. Fork the [**cognee-community**](https://github.com/topoteretes/cognee-community) repository
 2. Clone your fork:
 ```shell
-git clone https://github.com/<your-github-username>/cognee.git
-cd cognee
+git clone https://github.com/<your-github-username>/cognee-community.git
+cd cognee-community
 ```
 
 ### Create a Branch
@@ -76,15 +78,21 @@ git checkout -b feature/your-feature-name
 
 ## 3. 🎯 Making Changes
 
-1. **Code Style**: Follow the project's coding standards
+When writing new features, adapters, or pipelines, follow these guidelines:
+
+1. **Code Style**: Follow the project's coding standards (code style, **package hierarchy**, etc.)
 2. **Documentation**: Update relevant documentation
-3. **Tests**: Add tests for new features
+3. **Tests**: Add tests for new features/adapters
 4. **Commits**: Write clear commit messages
 
-### Running Tests
-```shell
-python cognee/cognee/tests/test_library.py
-```
+### Writing and Running Tests
+
+When adding new features, e.g. a new adapter, write **at least** 
+the examples and tests equivalent to other existing adapters.
+These can usually be found in the **examples** and **tests**
+directories of the adapter package.
+
+Run them, and **make sure they work before opening a PR**.
 
 ## 4. 📤 Submitting Changes
 
@@ -96,8 +104,8 @@ git push origin feature/your-feature-name
 ```
 
 2. Create a Pull Request:
-   - Go to the [**cognee** repository](https://github.com/topoteretes/cognee)
-   - Click "Compare & Pull Request" and open a PR against dev branch
+   - Go to the [**cognee-community** repository](https://github.com/topoteretes/cognee-community)
+   - Click "Compare & Pull Request" and open a PR against the main branch
    - Fill in the PR template with details about your changes
 
 ## 5. 📜 Developer Certificate of Origin (DCO)
@@ -115,14 +123,14 @@ When your PR is ready, please include:
 
 - Be respectful and inclusive
 - Help others learn and grow
-- Follow our [Code of Conduct](CODE_OF_CONDUCT.md)
+- Follow our [Code of Conduct](https://github.com/topoteretes/cognee/blob/main/CODE_OF_CONDUCT.md)
 - Provide constructive feedback
 - Ask questions when unsure
 
 ## 7. 📫 Getting Help
 
-- Open an [issue](https://github.com/topoteretes/cognee/issues)
-- Join our Discord community
+- Open an [issue](https://github.com/topoteretes/cognee-community/issues)
+- Join our [Discord community](https://discord.gg/bcy8xFAtfd)
 - Check existing documentation
 
 Thank you for contributing to **cognee**! 🌟
