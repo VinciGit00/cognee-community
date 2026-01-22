@@ -78,5 +78,5 @@ Navigate to the vector or graph store provider of choice and run the example
   - A `README.md` file with installation and usage instructions.
   - An `example.py` file demonstrating how to use the plugin with Cognee.
 
-
-Contributions are welcome! Please ensure your package is well-documented and easy to use.
+## Contributing
+We welcome contributions from the community! Your input helps make Cognee better for everyone. See [`CONTRIBUTING.md`](CONTRIBUTING.md) to get started.
