@@ -467,13 +467,17 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "cognee" },
+    { name = "instructor" },
     { name = "redisvl" },
+    { name = "starlette" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "cognee", specifier = "==0.5.1" },
+    { name = "instructor", specifier = ">=1.11" },
     { name = "redisvl", specifier = ">=0.6.0,<=1.0.0" },
+    { name = "starlette", specifier = ">=0.48.0" },
 ]
 
 [[package]]
