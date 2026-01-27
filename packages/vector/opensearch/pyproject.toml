@@ -5,8 +5,10 @@ description = "OpenSearch vector database adapter for cognee"
 readme = "README.md"
 requires-python = "<=3.13,>=3.10"
 dependencies = [
-  "opensearch-py==3.0.0",
-  "cognee==0.5.1"
+    "opensearch-py==3.0.0",
+    "cognee==0.5.1",
+    "starlette>=0.48.0",
+    "instructor>=1.11"
 ]
 
 [project.urls]
