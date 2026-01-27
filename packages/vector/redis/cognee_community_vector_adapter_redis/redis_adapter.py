@@ -79,6 +79,7 @@ class RedisAdapter(VectorDBInterface):
     def __init__(
         self,
         url: str,
+        database_name: str = "cognee",
         api_key: str | None = None,
         embedding_engine: EmbeddingEngine | None = None,
     ) -> None:
@@ -98,6 +99,7 @@ class RedisAdapter(VectorDBInterface):
             raise VectorEngineInitializationError("Embedding engine is required!")
 
         self.url = url
+        self.database_name = database_name
         self.embedding_engine = embedding_engine
         self._indices = {}
         self.VECTOR_DB_LOCK = asyncio.Lock()
@@ -330,6 +332,7 @@ class RedisAdapter(VectorDBInterface):
         query_vector: list[float] | None = None,
         limit: int | None = 15,
         with_vector: bool = False,
+        include_payload: bool = True,
     ) -> list[ScoredResult]:
         """Search for similar vectors in the collection.
 
@@ -339,6 +342,7 @@ class RedisAdapter(VectorDBInterface):
             query_vector: Pre-computed query vector.
             limit: Maximum number of results to return.
             with_vector: Whether to include vectors in results.
+            include_payload: Whether to include payloads in results.
 
         Returns:
             List of ScoredResult objects sorted by similarity.
@@ -380,7 +384,10 @@ class RedisAdapter(VectorDBInterface):
             )
 
             # Set return fields
-            return_fields = ["id", "text", "payload_data"]
+            if include_payload:
+                return_fields = ["id", "text", "payload_data"]
+            else:
+                return_fields = ["id", "text"]
             if with_vector:
                 return_fields.append("vector")
             vector_query = vector_query.return_fields(*return_fields)
@@ -417,6 +424,7 @@ class RedisAdapter(VectorDBInterface):
         query_texts: list[str],
         limit: int | None,
         with_vectors: bool = False,
+        include_payload: bool = True,
     ) -> list[list[ScoredResult]]:
         """Perform batch search for multiple queries.
 
@@ -425,6 +433,7 @@ class RedisAdapter(VectorDBInterface):
             query_texts: List of text queries to search for.
             limit: Maximum number of results per query.
             with_vectors: Whether to include vectors in results.
+            include_payload: Whether to include payloads in results.
 
         Returns:
             List of search results for each query, filtered by score threshold.
@@ -440,6 +449,7 @@ class RedisAdapter(VectorDBInterface):
                 query_vector=vector,
                 limit=limit,
                 with_vector=with_vectors,
+                include_payload=include_payload,
             )
             for vector in vectors
         ]

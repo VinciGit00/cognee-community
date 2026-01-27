@@ -1,10 +1,12 @@
 [project]
 name = "cognee-community-vector-adapter-weaviate"
-version = "0.0.2"
+version = "0.1.0"
 description = "Weaviate vector database adapter for cognee"
 readme = "README.md"
 requires-python = ">=3.11,<=3.13"
 dependencies = [
     "weaviate-client>=4.9.6,<5.0.0",
-    "cognee>=0.3.4"
+    "cognee==0.5.1",
+    "starlette>=0.48.0",
+    "instructor>=1.11"
 ] 

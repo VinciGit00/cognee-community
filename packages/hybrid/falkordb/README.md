@@ -18,7 +18,7 @@ from os import path
 from cognee import config, prune, add, cognify, search, SearchType
 
 # Import the register module to enable FalkorDB support
-import cognee_community_hybrid_adapter_falkor.register
+from cognee_community_hybrid_adapter_falkor import register
 
 async def main():
     # Set up local directories
@@ -33,12 +33,12 @@ async def main():
     
     # Configure FalkorDB as both vector and graph database
     config.set_vector_db_config({
-        "vector_db_provider": "falkordb",
+        "vector_db_provider": "falkor",
         "vector_db_url": os.getenv("GRAPH_DB_URL", "localhost"),
         "vector_db_port": int(os.getenv("GRAPH_DB_PORT", "6379")),
     })
     config.set_graph_db_config({
-        "graph_database_provider": "falkordb",
+        "graph_database_provider": "falkor",
         "graph_database_url": os.getenv("GRAPH_DB_URL", "localhost"),
         "graph_database_port": int(os.getenv("GRAPH_DB_PORT", "6379")),
     })

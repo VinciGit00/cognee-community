@@ -61,6 +61,7 @@ class PineconeAdapter(VectorDBInterface):
         url,
         api_key,
         embedding_engine: EmbeddingEngine,
+        database_name: str = "cognee",
         environment: str = None,
         cloud: str = None,
         region: str = None,
@@ -68,6 +69,7 @@ class PineconeAdapter(VectorDBInterface):
         self.url = url  # Not used by Pinecone, but required by Cognee interface
         self.api_key = api_key
         self.environment = environment
+        self.database_name = database_name
         self.cloud = cloud if cloud is not None else "aws"
         self.region = region if region is not None else "us-east-1"
         self.embedding_engine = embedding_engine
@@ -191,6 +193,7 @@ class PineconeAdapter(VectorDBInterface):
         query_vector: list[float] | None = None,
         limit: int = 15,
         with_vector: bool = False,
+        include_payload: bool = False,
     ) -> list[ScoredResult]:
         """Search for similar vectors in the collection.
 
@@ -200,6 +203,7 @@ class PineconeAdapter(VectorDBInterface):
             query_vector: Pre-computed query vector.
             limit: Maximum number of results to return.
             with_vector: Whether to include vectors in results.
+            include_payload: Whether to include payload in results.
 
         Returns:
             List of ScoredResult objects sorted by similarity.
@@ -231,7 +235,10 @@ class PineconeAdapter(VectorDBInterface):
                 return []
 
             results = index.query(
-                vector=query_vector, top_k=limit, include_metadata=True, include_values=with_vector
+                vector=query_vector,
+                top_k=limit,
+                include_metadata=include_payload,
+                include_values=with_vector,
             )
 
             return [
@@ -240,7 +247,9 @@ class PineconeAdapter(VectorDBInterface):
                     payload={
                         **match.metadata,
                         "id": parse_id(match.id),
-                    },
+                    }
+                    if include_payload
+                    else {},
                     # Pinecone returns similarity score (0-1, higher = more similar)
                     score=match.score,
                 )
@@ -257,6 +266,7 @@ class PineconeAdapter(VectorDBInterface):
         query_texts: list[str],
         limit: int | None = None,
         with_vectors: bool = False,
+        include_payload: bool = False,
     ) -> list[list[ScoredResult]]:
         """Perform batch search for multiple queries.
 
@@ -265,6 +275,7 @@ class PineconeAdapter(VectorDBInterface):
             query_texts: List of query texts to search for.
             limit: Maximum number of results per query.
             with_vectors: Whether to include vectors in results.
+            include_payload: Whether to include payload in results.
 
         Returns:
             List of search results, one list per query.
@@ -292,7 +303,7 @@ class PineconeAdapter(VectorDBInterface):
                     result = index.query(
                         vector=vector,
                         top_k=limit,
-                        include_metadata=True,
+                        include_metadata=include_payload,
                         include_values=with_vectors,
                     )
 
@@ -303,7 +314,9 @@ class PineconeAdapter(VectorDBInterface):
                             payload={
                                 **match.metadata,
                                 "id": parse_id(match.id),
-                            },
+                            }
+                            if include_payload
+                            else {},
                             score=match.score,
                         )
                         for match in result.matches

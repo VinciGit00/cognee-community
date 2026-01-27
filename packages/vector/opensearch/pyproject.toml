@@ -1,12 +1,12 @@
 [project]
 name = "cognee-community-vector-adapter-opensearch"
-version = "0.0.1"
+version = "0.1.0"
 description = "OpenSearch vector database adapter for cognee"
 readme = "README.md"
 requires-python = "<=3.13,>=3.10"
 dependencies = [
   "opensearch-py==3.0.0",
-  "cognee>=0.3.4"
+  "cognee==0.5.1"
 ]
 
 [project.urls]

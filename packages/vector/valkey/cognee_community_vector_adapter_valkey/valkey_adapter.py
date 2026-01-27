@@ -64,6 +64,7 @@ class ValkeyAdapter(VectorDBInterface):
         self,
         url: str | None,
         api_key: str | None = None,
+        database_name: str = "cognee",
         embedding_engine: EmbeddingEngine | None = None,
     ) -> None:
         """Initialize the Valkey adapter.
@@ -84,6 +85,7 @@ class ValkeyAdapter(VectorDBInterface):
 
         self.url = url
         self._host, self._port = _parse_host_port(url)
+        self.database_name = database_name
         self.embedding_engine = embedding_engine
         self._client: GlideClient | None = None
         self._connected = False
@@ -294,6 +296,17 @@ class ValkeyAdapter(VectorDBInterface):
             logger.error(f"Error creating data points: {str(e)}")
             raise e
 
+    # TODO: Add this and fix issues
+    # async def create_vector_index(self, index_name: str, index_property_name: str):
+    #     await self.create_collection(f"{index_name}_{index_property_name}")
+    #
+    # async def index_data_points(
+    #     self, index_name: str, index_property_name: str, data_points: List[DataPoint]
+    # ):
+    #     """Index data points in the collection."""
+    #
+    #     await self.create_data_points(f"{index_name}_{index_property_name}", data_points)
+
     async def retrieve(
         self,
         collection_name: str,
@@ -339,6 +352,7 @@ class ValkeyAdapter(VectorDBInterface):
         query_vector: list[float] | None = None,
         limit: int | None = 15,
         with_vector: bool = False,
+        include_payload: bool = False,
     ) -> list[ScoredResult]:
         """Search for similar vectors in the collection.
 
@@ -348,6 +362,7 @@ class ValkeyAdapter(VectorDBInterface):
             query_vector: Pre-computed query vector.
             limit: Maximum number of results to return.
             with_vector: Whether to include vectors in results.
+            include_payload: Whether to include payloads in results.
 
         Returns:
             List of ScoredResult objects sorted by similarity.
@@ -386,9 +401,10 @@ class ValkeyAdapter(VectorDBInterface):
             # Set return fields
             return_fields = [
                 ReturnField("$.id", alias="id"),
-                ReturnField("$.payload_data", alias="payload_data"),
                 ReturnField("__vector_score", alias="score"),
             ]
+            if include_payload:
+                return_fields.append(ReturnField("$.payload_data", alias="payload_data"))
             if with_vector:
                 return_fields.append(ReturnField("$.vector", alias="vector"))
 
@@ -421,6 +437,7 @@ class ValkeyAdapter(VectorDBInterface):
         with_vectors: bool = False,
         score_threshold: float | None = 0.1,
         max_concurrency: int = 10,
+        include_payload: bool = False,
     ) -> list[list[ScoredResult]]:
         """Perform batch search for multiple queries.
 
@@ -431,6 +448,7 @@ class ValkeyAdapter(VectorDBInterface):
             with_vectors: Whether to include vectors in results.
             score_threshold: threshold for filtering scores.
             max_concurrency: maximum number of concurrent searches.
+            include_payload: Whether to include payloads in results.
 
         Returns:
             List of search results for each query, filtered by score threshold.
@@ -454,6 +472,7 @@ class ValkeyAdapter(VectorDBInterface):
                     query_vector=vector,
                     limit=limit,
                     with_vector=with_vectors,
+                    include_payload=include_payload,
                 )
 
         tasks = [limited_search(vector) for vector in vectors]

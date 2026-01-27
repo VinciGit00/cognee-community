@@ -180,6 +180,7 @@ class QDrantAdapter(VectorDBInterface):
         query_vector: list[float] | None = None,
         limit: int | None = 15,
         with_vector: bool = False,
+        include_payload: bool = False,
     ) -> list[ScoredResult]:
         if query_text is None and query_vector is None:
             raise MissingQueryParameterError()
@@ -218,6 +219,7 @@ class QDrantAdapter(VectorDBInterface):
                 using="text",
                 limit=limit,
                 with_vectors=with_vector,
+                with_payload=include_payload,
             )
 
             await client.close()
@@ -228,7 +230,9 @@ class QDrantAdapter(VectorDBInterface):
             return [
                 ScoredResult(
                     id=parse_id(str(result.id)),
-                    payload={
+                    payload=None
+                    if not result.payload
+                    else {
                         **result.payload,
                         "id": parse_id(str(result.id)),
                     },
@@ -248,6 +252,7 @@ class QDrantAdapter(VectorDBInterface):
         query_texts: list[str],
         limit: int | None = None,
         with_vectors: bool = False,
+        include_payload: bool = False,
     ):
         """
         Perform batch search in a Qdrant collection with dynamic search requests.
@@ -258,6 +263,7 @@ class QDrantAdapter(VectorDBInterface):
         - limit (int): List of result limits for search requests.
         - with_vectors (bool, optional): Bool indicating whether to return
                                          vectors for search requests.
+        - include_payload (bool, optional): Bool indicating whether to return payload in results.
 
         Returns:
         - results: The search results from Qdrant.
@@ -291,6 +297,7 @@ class QDrantAdapter(VectorDBInterface):
                 ),
                 limit=limit,
                 with_vectors=with_vectors,
+                with_payload=include_payload,
             )
 
             await client.close()

@@ -71,12 +71,19 @@ class WeaviateAdapter(VectorDBInterface):
     api_key: str
     embedding_engine: EmbeddingEngine = None
 
-    def __init__(self, url: str, api_key: str, embedding_engine: EmbeddingEngine):
+    def __init__(
+        self,
+        url: str,
+        api_key: str,
+        embedding_engine: EmbeddingEngine,
+        database_name: str = "cognee",
+    ):
         import weaviate
         import weaviate.classes as wvc
 
         self.url = url
         self.api_key = api_key
+        self.database_name = database_name
 
         self.embedding_engine = embedding_engine
         self.VECTOR_DB_LOCK = asyncio.Lock()
@@ -384,6 +391,7 @@ class WeaviateAdapter(VectorDBInterface):
         query_vector: list[float] | None = None,
         limit: int | None = 15,
         with_vector: bool = False,
+        include_payload: bool = False,
     ):
         """
         Perform a search on a collection using either a text query or a vector query.
@@ -401,6 +409,7 @@ class WeaviateAdapter(VectorDBInterface):
               searching. (default None)
             - limit (int): The maximum number of results to return. (default 15)
             - with_vector (bool): Include vector information in the results. (default False)
+            - include_payload (bool): Include payload information in the results. (default False)
 
         Returns:
         --------
@@ -441,6 +450,7 @@ class WeaviateAdapter(VectorDBInterface):
                     limit=limit,
                     include_vector=with_vector,
                     return_metadata=wvc.query.MetadataQuery(score=True),
+                    return_properties=include_payload,
                 )
 
                 return [
@@ -461,6 +471,7 @@ class WeaviateAdapter(VectorDBInterface):
         query_texts: list[str],
         limit: int | None,
         with_vectors: bool = False,
+        include_payload: bool = False,
     ):
         """
         Execute a batch search for multiple query texts in the specified collection.
@@ -475,6 +486,7 @@ class WeaviateAdapter(VectorDBInterface):
             - limit (int): The maximum number of results to return for each query.
             - with_vectors (bool): Indicate whether to include vector information in the
               results. (default False)
+            - include_payload (bool): Include payload information in the results.
 
         Returns:
         --------
@@ -504,6 +516,7 @@ class WeaviateAdapter(VectorDBInterface):
                 query_vector=query_vector,
                 limit=limit,
                 with_vector=with_vectors,
+                include_payload=include_payload,
             )
 
         return [
