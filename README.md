@@ -58,6 +58,10 @@ uv sync --all-extras
 # OR
 poetry install
 ```
+OR
+```bash
+poetry install
+```
 
 You will need an LLM API key (OpenAI by default) in order to run cognee with these adapters.
 Before importing cognee, make sure to define your key like so:
