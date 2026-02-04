@@ -820,12 +820,11 @@ class FalkorDBAdapter:
             if with_vector:
                 result_properties.append(f"node.{attribute_name}_vector")
 
-        # TODO: Figure out why this query returns around half of what the limit is
         query = dedent(f"""
         CALL db.idx.vector.queryNodes(
             '{label}',
             '{attribute_name}_vector',
-            {limit * 5},
+            {limit},
             vecf32({query_vector}))
         YIELD node, score
         RETURN {", ".join(result_properties)}, score
