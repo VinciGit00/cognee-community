@@ -171,7 +171,11 @@ async def main():
     await test_getting_of_documents(dataset_name_1)
 
     vector_engine = get_vector_engine()
-    random_node = (await vector_engine.search("Entity_name", "Quantum computer"))[0]
+    random_node = (
+        await vector_engine.search(
+            collection_name="Entity_name", query_text="Quantum computer", include_payload=True
+        )
+    )[0]
     random_node_name = random_node.payload["text"]
 
     search_results = await cognee.search(

@@ -21,7 +21,6 @@ from cognee.infrastructure.databases.graph.graph_db_interface import (
     EdgeData,
     Node,
     NodeData,
-    record_graph_changes,
 )
 from cognee.infrastructure.databases.vector.embeddings import get_embedding_engine
 from cognee.infrastructure.databases.vector.embeddings.EmbeddingEngine import (
@@ -531,7 +530,6 @@ class FalkorDBAdapter:
         """
         await self.create_data_points(nodes)
 
-    @record_graph_changes  # type: ignore # TODO: Fix record_graph_changes
     async def add_nodes(self, nodes: list[Node] | list[DataPoint]) -> None:
         """
         Add multiple nodes to the graph in a single operation.
@@ -608,7 +606,6 @@ class FalkorDBAdapter:
         query = await self.create_edge_query(edge_tuple)
         self.query(query)
 
-    @record_graph_changes  # type: ignore # TODO: Fix record_graph_changes
     async def add_edges(self, edges: list[EdgeData]) -> None:
         """
         Add multiple edges to the graph in a single operation.
@@ -771,6 +768,7 @@ class FalkorDBAdapter:
         query_vector: list[float] | None = None,
         limit: int | None = None,
         with_vector: bool = False,
+        include_payload: bool = False,
     ) -> list:
         """
         Search for nodes in a collection based on text or vector query, with optional limitation
@@ -787,6 +785,7 @@ class FalkorDBAdapter:
             - limit (int): Maximum number of results to return from the search. (default 10)
             - with_vector (bool): Flag indicating whether to return vectors with the search
               results. (default False)
+            - include_payload (bool): Flag indicating whether to include payload (default False)
 
         Returns:
         --------
@@ -818,14 +817,21 @@ class FalkorDBAdapter:
         if limit == 0:
             return []
 
-        # TODO: Figure out why this query returns around half of what the limit is
+        if include_payload:
+            result_properties = ["node"]
+        else:
+            result_properties = ["node.id"]
+            if with_vector:
+                result_properties.append(f"node.{attribute_name}_vector")
+
         query = dedent(f"""
         CALL db.idx.vector.queryNodes(
             '{label}',
             '{attribute_name}_vector',
-            {limit * 5},
+            {limit},
             vecf32({query_vector}))
         YIELD node, score
+        RETURN {", ".join(result_properties)}, score
         """).strip()
 
         search_results = self.query(query)
@@ -833,15 +839,24 @@ class FalkorDBAdapter:
         # Convert results to ScoredResult objects
         scored_results = []
         for result in search_results.result_set:
-            payload_data = result[0].properties
+            payload_data = result[0].properties if include_payload else {}
             if "name" in payload_data:
                 payload_data["text"] = payload_data["name"]
 
+            if not include_payload:
+                res_id = result[0]
+                vector = result[1] if with_vector else None
+                score = result[2] if with_vector else result[1]
+            else:
+                res_id = payload_data["id"]
+                vector = payload_data[f"{attribute_name}_vector"] if with_vector else None
+                score = result[1]
+
             scored_result = ScoredResult(
-                id=parse_id(result[0].properties["id"]),
-                score=result[1],
+                id=parse_id(res_id),
+                score=score,
                 payload=payload_data,
-                vector=result[0].properties[f"{attribute_name}_vector"] if with_vector else None,
+                vector=vector,
             )
             scored_results.append(scored_result)
 
@@ -853,6 +868,7 @@ class FalkorDBAdapter:
         query_texts: list[str],
         limit: int | None = None,
         with_vectors: bool = False,
+        include_payload: bool = False,
     ) -> list:
         """
         Perform batch search across multiple queries based on text inputs and return results
@@ -866,6 +882,8 @@ class FalkorDBAdapter:
             - query_texts (list[str]): A list of text queries to search for.
             - limit (int): Optional limit for the search results for each query. (default None)
             - with_vectors (bool): Flag indicating whether to return vectors with the results.
+              (default False)
+            - include_payload (bool): Flag indicating whether to include payload for each query.
               (default False)
 
         Returns:
@@ -883,6 +901,7 @@ class FalkorDBAdapter:
                     query_vector=query_vector,
                     limit=limit,
                     with_vector=with_vectors,
+                    include_payload=include_payload,
                 )
                 for query_vector in query_vectors
             ]

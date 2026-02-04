@@ -40,6 +40,7 @@ class OpenSearchAdapter(VectorDBInterface):
         self,
         url: str | None = None,
         api_key: str | None = None,
+        database_name: str = "cognee",
         embedding_engine: EmbeddingEngine = None,
         endpoint: str | None = None,
         **kwargs: dict | None,  # Accept additional keyword arguments
@@ -86,6 +87,7 @@ class OpenSearchAdapter(VectorDBInterface):
 
         self.final_endpoint = final_endpoint
         self.embedding_engine = embedding_engine
+        self.database_name = database_name
         self.index_prefix = index_prefix
         self.VECTOR_DB_LOCK = asyncio.Lock()
         self.client = AsyncOpenSearch(
@@ -284,6 +286,7 @@ class OpenSearchAdapter(VectorDBInterface):
         query_vector: list[float] | None = None,
         limit: int | None = 15,
         with_vector: bool = False,
+        include_payload: bool = False,
     ) -> list[ScoredResult]:
         """
         Search for similar data points in a collection using a query text or vector.
@@ -295,6 +298,7 @@ class OpenSearchAdapter(VectorDBInterface):
             - query_vector (Optional[List[float]]): Query vector to search.
             - limit (int): Maximum number of results to return.
             - with_vector (bool): Whether to include vectors in the results.
+            - include_payload (bool): Whether to include payloads in the results.
 
         Returns:
         --------
@@ -344,6 +348,7 @@ class OpenSearchAdapter(VectorDBInterface):
         query_texts: list[str],
         limit: int | None = 15,
         with_vectors: bool = False,
+        include_payload: bool = False,
     ):
         """
         Perform a batch search for multiple query texts.
@@ -354,6 +359,7 @@ class OpenSearchAdapter(VectorDBInterface):
             - query_texts (List[str]): List of query texts.
             - limit (int): Maximum number of results per query.
             - with_vectors (bool): Whether to include vectors in the results.
+            - include_payload (bool): Whether to include payloads in the results.
 
         Returns:
         --------
@@ -366,6 +372,7 @@ class OpenSearchAdapter(VectorDBInterface):
                 query_vector=vector,
                 limit=limit,
                 with_vector=with_vectors,
+                include_payload=include_payload,
             )
             for vector in vectors
         ]

@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
 from uuid import UUID
 
 import duckdb
@@ -63,12 +63,14 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         self,
         url: str | None = None,
         api_key: str | None = None,
+        database_name: str | None = "cognee",
         embedding_engine: EmbeddingEngine | None = None,
         graph_database_username: str | None = None,
         graph_database_password: str | None = None,
     ) -> None:
         self.database_url = url
         self.api_key = api_key
+        self.database_name = database_name
         self.embedding_engine = embedding_engine
         self.graph_database_username = graph_database_username
         self.graph_database_password = graph_database_password
@@ -255,7 +257,8 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         query_text: str | None = None,
         query_vector: list[float] | None = None,
         limit: int | None = 15,
-        with_vector: bool = False,
+        with_vector: bool = True,
+        include_payload: bool = False,
     ) -> list[ScoredResult]:
         """[VECTOR] Search for similar vectors."""
         from cognee.infrastructure.databases.exceptions import (
@@ -314,9 +317,14 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
 
             # Execute vector similarity search using cosine similarity
 
+            select_fields = ["id", f"array_cosine_distance(vector, {vector_str}) as distance"]
+            if with_vector:
+                select_fields.append("vector")
+            if include_payload:
+                select_fields.append("payload")
+
             search_query = f"""
-            SELECT id, text, vector, payload, array_cosine_distance(vector, {vector_str})
-            as distance
+            SELECT {", ".join(select_fields)}
             FROM {collection_name}
             LIMIT {limit}
             """
@@ -329,11 +337,14 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
             # Convert results to ScoredResult objects
             results = []
             for row in search_results:
-                distance = row[4]  # distance is the 5th column (index 4)
+                distance = row[1]  # distance is the 2nd column (index 1)
 
                 score = 1.0 - distance
                 # Parse the payload JSON
-                payload_data = json.loads(row[3]) if row[3] else {}
+                payload = {}
+                if include_payload:
+                    payload = row[3] if with_vector else row[2]
+                payload_data = json.loads(payload) if payload else {}
 
                 result = ScoredResult(
                     id=parse_id(row[0]),
@@ -355,6 +366,7 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         query_texts: list[str],
         limit: int | None = 15,
         with_vectors: bool = False,
+        include_payload: bool = False,
     ) -> list[list[ScoredResult]]:
         """[VECTOR] Perform batch vector search."""
         # Embed all queries at once
@@ -368,6 +380,7 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
                 query_vector=vector,
                 limit=limit,
                 with_vector=with_vectors,
+                include_payload=include_payload,
             )
             for vector in vectors
         ]
@@ -510,6 +523,11 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         self,
     ) -> tuple[list[tuple[str, dict[str, Any]]], list[tuple[str, str, str, dict[str, Any]]]]:
         """[GRAPH] Get all graph data (nodes and edges)."""
+        raise NotImplementedError("Graph operations are not implemented for DuckDB adapter")
+
+    async def get_filtered_graph_data(
+        self, attribute_filters: List[Dict[str, List[Union[str, int]]]]
+    ) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str, str, Dict[str, Any]]]]:
         raise NotImplementedError("Graph operations are not implemented for DuckDB adapter")
 
     async def get_graph_metrics(self, include_optional: bool = False) -> dict[str, Any]:

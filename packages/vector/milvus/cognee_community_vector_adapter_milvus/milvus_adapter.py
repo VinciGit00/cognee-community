@@ -46,9 +46,16 @@ class MilvusAdapter:
 
     name = "Milvus"
 
-    def __init__(self, url: str, api_key: str | None, embedding_engine: EmbeddingEngine):
+    def __init__(
+        self,
+        url: str,
+        api_key: str | None,
+        embedding_engine: EmbeddingEngine,
+        database_name: str = "cognee",
+    ):
         self.url = url
         self.api_key = api_key
+        self.database_name = database_name
         self.embedding_engine = embedding_engine
         self.VECTOR_DB_LOCK = asyncio.Lock()
         self.client = None
@@ -320,6 +327,7 @@ class MilvusAdapter:
         query_vector: list[float] | None = None,
         limit: int | None = 10,
         with_vector: bool = False,
+        include_payload: bool = False,
         **kwargs: object,
     ) -> list[dict[str, object]]:
         """
@@ -371,21 +379,29 @@ class MilvusAdapter:
             # Perform the search
             search_params = {"metric_type": "COSINE", "params": {"nprobe": 10}}
 
+            output_fields = ["id", "text", "metadata"] if include_payload else ["id"]
+            if with_vector:
+                output_fields.append("vector")
+
             results = client.search(
                 collection_name=collection_name,
                 data=[search_vector],
                 anns_field="vector",
                 search_params=search_params,
                 limit=limit,
-                output_fields=["id", "text", "metadata"],
+                output_fields=output_fields,
             )
 
             scored_results = []
             for result in results[0]:  # results is a list of lists
-                payload = {
-                    "text": result["text"],
-                    "metadata": result["metadata"],
-                }
+                payload = (
+                    {
+                        "text": result["text"],
+                        "metadata": result["metadata"],
+                    }
+                    if include_payload
+                    else {}
+                )
                 if with_vector:
                     payload["vector"] = result["vector"]
 
@@ -404,6 +420,7 @@ class MilvusAdapter:
         query_texts: list[str],
         limit: int | None = 10,
         with_vectors: bool = False,
+        include_payload: bool = False,
         **kwargs: object,
     ) -> list[list[dict[str, object]]]:
         """
@@ -438,23 +455,31 @@ class MilvusAdapter:
             # Perform the batch search
             search_params = {"metric_type": "COSINE", "params": {"nprobe": 10}}
 
+            output_fields = ["id", "text", "metadata"] if include_payload else ["id"]
+            if with_vectors:
+                output_fields.append("vector")
+
             results = client.search(
                 collection_name=collection_name,
                 data=query_vectors,
                 anns_field="vector",
                 search_params=search_params,
                 limit=limit,
-                output_fields=["id", "text", "metadata"],
+                output_fields=output_fields,
             )
 
             batch_results = []
             for query_results in results:
                 query_search_results = []
                 for result in query_results:
-                    payload = {
-                        "text": result["text"],
-                        "metadata": result["metadata"],
-                    }
+                    payload = (
+                        {
+                            "text": result["text"],
+                            "metadata": result["metadata"],
+                        }
+                        if include_payload
+                        else {}
+                    )
                     if with_vectors:
                         payload["vectors"] = result["vectors"]
 

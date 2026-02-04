@@ -42,7 +42,10 @@ self.client = weaviate.use_async_with_local(
 
 You can use the docker command provided by Weaviate (https://docs.weaviate.io/deploy/installation-guides/docker-installation)
 to run Weaviate with default settings. The command looks something like this, specifying the ports for connection:
-`docker run -p 8080:8080 -p 50051:50051 cr.weaviate.io/semitechnologies/weaviate:1.32.4`
+
+```bash
+docker run -p 8080:8080 -p 50051:50051 cr.weaviate.io/semitechnologies/weaviate:1.32.4
+```
 
 ## Usage
 
