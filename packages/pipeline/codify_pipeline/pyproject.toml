@@ -1,10 +1,10 @@
 [project]
 name = "cognee-community-pipeline-codify"
-version = "0.1.0"
+version = "0.1.1"
 description = "Package containing a custom cognee pipeline called codify, which creates a knowledge graph based on a code repository."
 requires-python = ">=3.11,<=3.13"
 dependencies = [
-    "cognee==0.5.0",
+    "cognee==0.5.2",
     "cognee-community-retriever-code>=0.0.1",
     "cognee-community-tasks-codify>=0.0.1",
     "fastembed<=0.6.0 ; python_version < '3.13'",

@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 import aiofiles
 from aenum import extend_enum
@@ -39,7 +39,7 @@ class CodeRetriever(BaseRetriever):
         filenames: List[str] = []
         sourcecode: str
 
-    def __init__(self, top_k: int = 3):
+    def __init__(self, top_k: int = 3, **kwargs):
         """Initialize retriever with search parameters."""
         self.top_k = top_k
         self.file_name_collections = ["CodeFile_name"]
@@ -71,7 +71,7 @@ class CodeRetriever(BaseRetriever):
             logger.error(f"Failed to retrieve structured output from LLM: {str(e)}")
             raise RuntimeError("Failed to retrieve structured output from LLM") from e
 
-    async def get_context(self, query: str) -> Any:
+    async def get_retrieved_objects(self, query: Optional[str]) -> Any:
         """Find relevant code files based on the query."""
         logger.info(
             f"Starting code retrieval for query: '{query[:100]}{'...' if len(query) > 100 else ''}'"
@@ -176,6 +176,55 @@ class CodeRetriever(BaseRetriever):
         )
         logger.info(f"Retrieved graph connections for {len(relevant_triplets)} items")
 
+        return relevant_triplets
+
+    async def get_context_from_objects(
+        self,
+        query: Optional[str] = None,
+        query_batch: Optional[str] = None,
+        retrieved_objects: Any = None,
+    ) -> Union[str, List[str]]:
+        triplets = retrieved_objects
+
+        return "\n".join(
+            ", ".join(
+                triplet[0]["name"]
+                + " --> "
+                + triplet[1]["relationship_name"]
+                + " --> "
+                + triplet[2]["name"]
+                for triplet in triplet_list
+            )
+            for triplet_list in triplets
+        )
+
+    async def get_completion_from_context(
+        self,
+        query: Optional[str] = None,
+        query_batch: Optional[List[str]] = None,
+        retrieved_objects: Any = None,
+        context: Any = None,
+    ) -> Union[List[str], List[dict]]:
+        """
+        Returns the code files context.
+
+        Parameters:
+        -----------
+
+            - query (str): The query string to retrieve code context for.
+            - context (Optional[Any]): Optional pre-fetched context; if None, it retrieves
+              the context for the query. (default None)
+            - retrieved_objects (Optional[Any]): Optional pre-fetched triplets.
+
+        Returns:
+        --------
+
+            - Any: The code files context, either provided or retrieved.
+        """
+
+        # TODO: Do we want to generate a completion using LLM here?
+        relevant_triplets = retrieved_objects
+
         paths = set()
         for i, sublist in enumerate(relevant_triplets):
             logger.debug(f"Processing connections for item {i}: {len(sublist)} connections")
@@ -222,27 +271,3 @@ class CodeRetriever(BaseRetriever):
 
         logger.info(f"Returning {len(result)} code file contexts")
         return result
-
-    async def get_completion(
-        self, query: str, context: Optional[Any] = None, session_id: Optional[str] = None
-    ) -> Any:
-        """
-        Returns the code files context.
-
-        Parameters:
-        -----------
-
-            - query (str): The query string to retrieve code context for.
-            - context (Optional[Any]): Optional pre-fetched context; if None, it retrieves
-              the context for the query. (default None)
-            - session_id (Optional[str]): Optional session identifier for caching. If None,
-              defaults to 'default_session'. (default None)
-
-        Returns:
-        --------
-
-            - Any: The code files context, either provided or retrieved.
-        """
-        if context is None:
-            context = await self.get_context(query)
-        return context
