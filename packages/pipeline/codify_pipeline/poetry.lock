@@ -842,19 +842,19 @@ scraping = ["apscheduler (>=3.10.0,<=3.11.0)", "beautifulsoup4 (>=4.13.1)", "lxm
 
 [[package]]
 name = "cognee-community-retriever-code"
-version = "0.0.1"
+version = "0.1.1"
 description = "Package containing a custom cognee retriever for working with code repositories"
 optional = false
 python-versions = "<=3.13,>=3.11"
 groups = ["main"]
 files = [
-    {file = "cognee_community_retriever_code-0.0.1-py3-none-any.whl", hash = "sha256:f5f4063999305a8fe5a46c076b8a5bd667040be15664525dc52b0455a8667333"},
-    {file = "cognee_community_retriever_code-0.0.1.tar.gz", hash = "sha256:2243272616c659c534f598971b4371c98b08ac58e3d0b1c84678d4c061f91977"},
+    {file = "cognee_community_retriever_code-0.1.1-py3-none-any.whl", hash = "sha256:8f0a094317bb0ffd04927aae7877b3c93320ebf2180185bad8d2bd3c4d491828"},
+    {file = "cognee_community_retriever_code-0.1.1.tar.gz", hash = "sha256:0b4c23a1980f37d014905656709e817817963de73ca513d272361b7878f85c25"},
 ]
 
 [package.dependencies]
 aenum = ">=3.1.16"
-cognee = ">=0.4.1"
+cognee = "0.5.2"
 
 [[package]]
 name = "cognee-community-tasks-codify"
@@ -5568,4 +5568,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<=3.13"
-content-hash = "424775e2ad283478e085b6be06a9fb1d400f05156d9f604d7d8c5a10677c327a"
+content-hash = "7a1c6ad1127c15648c0ddbbe56b01ed8c2fcb601ded604396127b45f2a7c8f1f"
