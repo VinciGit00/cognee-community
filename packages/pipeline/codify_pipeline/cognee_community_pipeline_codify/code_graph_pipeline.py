@@ -1,9 +1,8 @@
 from typing import Optional
 
-from cognee.infrastructure.databases.relational import get_relational_engine
 from cognee.infrastructure.llm import get_max_chunk_tokens
 from cognee.modules.cognify.config import get_cognify_config
-from cognee.modules.data.methods import create_dataset
+from cognee.modules.data.methods import create_authorized_dataset
 from cognee.modules.observability.get_observe import get_observe
 from cognee.modules.pipelines import run_tasks
 from cognee.modules.pipelines.tasks.task import Task
@@ -75,9 +74,7 @@ async def run_code_graph_pipeline(
     dataset_name = "codebase"
 
     # Save dataset to database
-    db_engine = get_relational_engine()
-    async with db_engine.get_async_session() as session:
-        dataset = await create_dataset(dataset_name, user, session)
+    dataset = await create_authorized_dataset(dataset_name, user)
 
     if include_docs:
         non_code_pipeline_run = run_tasks(

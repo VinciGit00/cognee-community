@@ -60,7 +60,7 @@ jobs:
       - name: Community Setup
         uses: ./.github/actions/community_setup
         with:
-          python-version: ${{ inputs.python-version }}
+          python-version: "3.11.x"
           package-path: packages/pipeline/codify_pipeline
           event-type: ${{ inputs.event-type }}
 
