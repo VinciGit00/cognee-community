@@ -525,7 +525,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "cognee", specifier = "==0.5.2" },
-    { name = "cognee-community-retriever-code", specifier = ">=0.0.1" },
+    { name = "cognee-community-retriever-code", specifier = ">=0.1.1" },
     { name = "cognee-community-tasks-codify", specifier = ">=0.0.1" },
     { name = "fastembed", marker = "python_full_version < '3.13'", specifier = "<=0.6.0" },
     { name = "transformers", specifier = ">=4.46.3,<5" },

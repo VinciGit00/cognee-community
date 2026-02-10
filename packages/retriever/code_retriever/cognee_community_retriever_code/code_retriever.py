@@ -39,9 +39,9 @@ class CodeRetriever(BaseRetriever):
         filenames: List[str] = []
         sourcecode: str
 
-    def __init__(self, top_k: int = 3, **kwargs):
+    def __init__(self, **kwargs):
         """Initialize retriever with search parameters."""
-        self.top_k = top_k
+        self.top_k = kwargs.get("top_k", 3)
         self.file_name_collections = ["CodeFile_name"]
         self.classes_and_functions_collections = [
             "ClassDefinition_source_code",
